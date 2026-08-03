@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { extractKmlFromKmz, parseKml, parseAreaFromName, normalizeText, readKmzFiles } from './kmz.js';
 
 function stripDuplicateWhitespace(text) {

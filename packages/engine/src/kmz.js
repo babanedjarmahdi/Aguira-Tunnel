@@ -2,6 +2,10 @@ import AdmZip from 'adm-zip';
 import { XMLParser } from 'fast-xml-parser';
 import fs from 'fs';
 import path from 'path';
+import { parseAreaFromName } from '@terraflow/shared';
+
+export { parseAreaFromName } from '@terraflow/shared';
+export { normalizeText } from '@terraflow/shared';
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -77,29 +81,6 @@ export function parseKml(xmlString) {
   });
 
   return parsed;
-}
-
-export function parseAreaFromName(name) {
-  const normalized = name.replace(/[۰-۹]/g, (d) => String.fromCharCode(0x30 + d.charCodeAt(0) - 0x06f0));
-  if (/هكتار/.test(normalized)) {
-    const m = normalized.match(/(\d+(?:\.\d+)?)/);
-    if (m) return Math.round(parseFloat(m[1]) * 10000); // 1 هكتار = 10000 m2
-    return null;
-  }
-  const m = normalized.match(/(\d+(?:\.\d+)?)/);
-  if (!m) return null;
-  const num = parseFloat(m[1]);
-  if (num >= 1000) return Math.round(num); // e.g. 1200م -> 1200
-  return Math.round(num);
-}
-
-export function normalizeText(text) {
-  return (text || '')
-    .replace(/[\u064B-\u0652]/g, '')
-    .replace(/[\u0600-\u0605\u06DD\u08E2\u066A\u066B\u066C]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
 }
 
 export function readKmzFiles(sourceDir) {

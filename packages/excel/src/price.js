@@ -1,8 +1,4 @@
-const DIG = { '٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9','۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9' };
-
-export function toWest(s) {
-  return String(s || '').replace(/[٠-٩۰-۹]/g, (d) => DIG[d]).replace(/٫/g, '.').replace(/[،,]/g, ' ');
-}
+import { toWest } from '@terraflow/shared';
 
 function nums(s) {
   const out = [];
@@ -92,6 +88,7 @@ function thousand(t) {
   return range(vals);
 }
 
+// As-written price display for the Excel "السعر المطلوب" column.
 export function formatPrice(ai) {
   const t = toWest(ai.price_note || '');
   if (!t.trim()) {
@@ -137,21 +134,4 @@ export function priceMils(display) {
   if (/^\d+(\.\d+)?B$/.test(seg)) return Math.round(parseFloat(seg) * 1000);
   if (/^\d+(\.\d+)?M/.test(seg)) return Math.round(parseFloat(seg));
   return 0;
-}
-
-// Type -> ID prefix, matching the template's column-A formula.
-export function typePrefix(type) {
-  const map = {
-    'أرض': 'L',
-    'منزل سومي فيني': 'S',
-    'سومي فيني افونسي': 'SA',
-    'منزل': 'H',
-    'كراج': 'G',
-    'محل تجاري': 'C',
-    'محل': 'C',
-    'كركاس': 'K',
-    'شقة': 'A',
-    'مزرعة': 'F',
-  };
-  return map[type] || '?';
 }

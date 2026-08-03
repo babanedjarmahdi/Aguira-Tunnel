@@ -1,0 +1,13 @@
+{
+  "name": "@terraflow/excel",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@terraflow/shared": "0.1.0",
+    "exceljs": "^4.4.0"
+  }
+}

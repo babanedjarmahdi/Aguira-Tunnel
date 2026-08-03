@@ -1,0 +1,12 @@
+{
+  "name": "@terraflow/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "dependencies": {
+    "@terraflow/engine": "0.1.0",
+    "@terraflow/database": "0.1.0",
+    "express": "^4.21.2"
+  }
+}
