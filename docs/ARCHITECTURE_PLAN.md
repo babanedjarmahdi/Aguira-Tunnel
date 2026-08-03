@@ -32,15 +32,16 @@ If a feature does not, it does not ship.
 ## 2. Core Philosophy
 
 1. **We are NOT building a CRM first.** We are solving one painful workflow at a
-   time. The CRM emerges naturally from solving real operational problems.
+   time. The relationship-management cluster (CRM modules) emerges naturally from
+   solving real operational problems.
 2. **Do not replace Excel abruptly.** The company runs on Excel — formulas,
    multi-sheet workflows, years of accumulated process. Migration is **gradual**
    and **two-way compatible** (Excel import AND Excel export).
 3. **The first pain point is the KMZ import.** Solved and shipped (Phase 1).
 4. **Standard JSON is the single source of truth.** Everything else (PostgreSQL,
    Excel export, REST API, future integrations) is derived from it.
-5. **The import pipeline stays independent of the CRM.** It is a module, not a
-   feature of the CRM.
+5. **The import pipeline stays independent of the rest of the platform.** It is a
+   module, not a feature of the CRM.
 
 ---
 
@@ -211,9 +212,9 @@ KMZ ──► KML ──► Standard JSON ──► AI Extraction ──► Data
 6. **Persistence**: upsert into PostgreSQL; delete rows whose source file no
    longer exists.
 
-**Independence:** the pipeline never imports CRM code. A future integration
-(e.g., batch upload from a shapefile) plugs into the Import module and emits the
-same Standard JSON.
+**Independence:** the pipeline never imports other modules' code. A future
+integration (e.g., batch upload from a shapefile) plugs into the Import module
+and emits the same Standard JSON.
 
 ---
 
@@ -418,8 +419,8 @@ minimal Phase 3 read-only experience.
 
 - Ask before every feature: *"Does this reduce mental effort or save time?"* —
   if not, don't build it.
-- Build the **one painful workflow** first; the CRM emerges from the sum.
-- Keep the **import pipeline decoupled** from the CRM.
+- Build the **one painful workflow** first; the CRM modules emerge from the sum.
+- Keep the **import pipeline decoupled** from the rest of the platform.
 - Keep **Standard JSON forward-compatible**: add fields, never rename/remove.
 - Every module needs a **contract, storage, API, UI** — in that order.
 - **Postgres is queried, JSON is canonical, Excel is output.**

@@ -1,10 +1,10 @@
 # TerraFlow — Product Vision & Roadmap
 
-> **Tagline:** From Google Earth pins to a complete real-estate management system.
+> **Tagline:** From Google Earth pins to a real-estate operating system.
 
 TerraFlow started as a data-ingestion pipeline that turns Google Earth `.kmz`
 files into a structured property database. It is designed to grow into a **full
-real-estate management system (CRM)** for the Algerian property market.
+real-estate operating system** for the Algerian property market.
 
 This document describes where the project is going. Read it before designing any
 new feature so the architecture always stays aligned with the vision.
@@ -13,6 +13,13 @@ new feature so the architecture always stays aligned with the vision.
 > [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md).** This file is the product vision;
 > that file is the system architecture (modules, data flow, AI layer, scalability,
 > SaaS evolution).
+
+> **Terminology note.** TerraFlow is called a *platform* or *operating system* —
+> deliberately not a "CRM." Relationship management (clients, visits, deals) is
+> one cluster of modules built later, and we are not building a CRM first. The
+> word "CRM" appears only when referring to that module cluster (Phase 4) or to
+> the existing Excel workbook's marketing name. See
+> [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §2.
 
 ---
 
@@ -34,13 +41,13 @@ This makes it impossible to answer simple questions like:
 - "What is the total value of everything currently for sale?"
 
 TerraFlow centralizes all of this into **one database** and grows the single
-workbook into a **real web CRM**.
+workbook into a **real web platform**.
 
 ---
 
 ## 2. The final vision (long term)
 
-A full web-based CRM, hosted or on-premise, used by the agency's employees:
+A full web-based platform, hosted or on-premise, used by the agency's employees:
 
 | Capability | Description |
 |---|---|
@@ -129,9 +136,10 @@ A **React** app consuming the API (CRA or Vite):
 
 ## 5. Guiding principles
 
-1. **PostgreSQL is the source of truth.** Excel is an export view, never the
-   master. The pipeline may *write* Excel, the web app may *read* it back, but
-   all queries run against the database.
+1. **Standard JSON is the single source of truth.** PostgreSQL is the indexed
+   query view of that truth; Excel is an export view, never the master. The
+   pipeline may *write* Excel, the web app may *read* it back, but the canonical
+   data is defined once, in the Standard JSON contract.
 2. **AI is enrichment, not hallucination.** AI fields (`ai_raw`) are stored
    separately and never overwrite the raw source text. Always keep the original
    description.
