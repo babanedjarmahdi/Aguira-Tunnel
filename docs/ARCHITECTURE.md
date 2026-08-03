@@ -65,62 +65,25 @@ with zero manual steps.
 
 ---
 
-## 2. Target architecture (Phases 2–5)
+## 2. Target architecture
 
-The pipeline becomes a service feeding a full-stack CRM:
+The forward-looking blueprint (modules, data flow, API strategy, AI layer,
+scalability, SaaS evolution, roadmap) is the CTO document:
 
-```
-┌────────────┐   ┌─────────────────────────────────────────────────┐
-│ SOURCE_KMZ │   │  TERRAFLOW API (Node + Express/Fastify)          │
-│ folder     │──►│                                                 │
-└────────────┘   │  ┌───────────────┐  ┌─────────────────────────┐  │
-                 │  │ sync service  │  │  REST API               │  │
-                 │  │ (watcher,     │  │  /api/properties        │  │
-                 │  │  scheduled,   │  │  /api/clients           │  │
-                 │  │  on-demand)   │  │  /api/visits            │  │
-                 │  └──────┬────────┘  │  /api/deals             │  │
-                 │         │           │  /api/stats/dashboard   │  │
-                 │         ▼           └───────────┬─────────────┘  │
-                 │  ┌──────────────┐               │                │
-                 │  │ PostgreSQL   │◄──────────────┘                │
-                 │  │ (source of   │                                │
-                 │  │  truth)      │                                │
-                 │  └──────┬───────┘                                │
-                 │         │                                        │
-                 │  ┌──────▼───────┐  ┌───────────────────────────┐ │
-                 │  │ Excel export │  │  React web app (Phase 3+) │ │
-                 │  │ (compat view)│  │  properties · map ·        │ │
-                 │  └──────────────┘  │  clients · visits · deals  │ │
-                 │                    └───────────────────────────┘ │
-                 └─────────────────────────────────────────────────┘
-```
+> **[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md)** — the full 19-section
+> platform architecture.
 
-### Recommended project layout (when the API is added)
+Key decisions that apply from today:
 
-```
-src/
-  lib/            # pure logic (kmz, extractor, ai, pricing, ids)
-  scripts/        # one-shot CLI pipeline stages
-  server/         # Express app, routes, controllers
-  services/       # sync service wrapping the pipeline stages
-  db/             # migrations (node-pg-migrate)
-web/              # React app (Vite) consuming the API
-docs/             # this documentation
-docker-compose.yml
-schema.sql
-```
-
-### Decisions to keep in mind
-
-- **PostgreSQL is the source of truth.** The API only reads/writes the DB.
-  Excel stays as a generated export for backward compatibility.
-- **Sync is a service**, not a cron script. The watcher moves into the API
-  process (or a small worker) so triggers are: file change, scheduled, or
-  HTTP `POST /api/sync`.
-- **React + Node + Postgres** was the agreed stack — everything added so far
+- **Standard JSON is the source of truth** (not Excel, and not even Postgres —
+  Postgres is the queried materialization). See [STANDARD_JSON.md](STANDARD_JSON.md).
+- **Sync becomes a service**: the watcher moves into the API process (or a small
+  worker) so triggers are file change, scheduled, or `POST /api/sync`.
+- **React + Node + Postgres** is the agreed stack — everything added so far
   (ESM, `pg`, JSON outputs) is forward-compatible with it.
 - **Geo queries** can use PostGIS later; for now `lat`/`lon` columns + an index
   are enough.
+- **The AI layer is provider-independent**; today Groq, tomorrow any provider.
 
 ---
 
@@ -157,4 +120,4 @@ schema.sql
 
 ---
 
-*Back to [VISION.md](VISION.md) · Next: [DATA_MODEL.md](DATA_MODEL.md)*
+*Back to [VISION.md](VISION.md) · Forward: [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) · Next: [DATA_MODEL.md](DATA_MODEL.md)*

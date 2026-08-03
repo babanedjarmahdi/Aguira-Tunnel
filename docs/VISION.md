@@ -9,6 +9,11 @@ real-estate management system (CRM)** for the Algerian property market.
 This document describes where the project is going. Read it before designing any
 new feature so the architecture always stays aligned with the vision.
 
+> **The complete technical blueprint lives in
+> [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md).** This file is the product vision;
+> that file is the system architecture (modules, data flow, AI layer, scalability,
+> SaaS evolution).
+
 ---
 
 ## 1. The problem we are solving
@@ -152,4 +157,4 @@ A **React** app consuming the API (CRA or Vite):
 
 ---
 
-*Next: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATA_MODEL.md](DATA_MODEL.md) · [OPERATIONS.md](OPERATIONS.md)*
+*Next: [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) · [PLAN.md](PLAN.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [DATA_MODEL.md](DATA_MODEL.md) · [OPERATIONS.md](OPERATIONS.md)*

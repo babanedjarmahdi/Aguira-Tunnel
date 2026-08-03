@@ -24,8 +24,11 @@ KMZ files ──► Extract + parse + dedupe ──► properties.json
 
 | Document | Contents |
 |---|---|
-| [docs/VISION.md](docs/VISION.md) | Product vision, roadmap (Phases 2–5), guiding principles |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current pipeline + target full-stack architecture |
+| [docs/VISION.md](docs/VISION.md) | Product vision, roadmap, guiding principles |
+| [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) | **CTO blueprint**: the full 19-section platform architecture (modules, data flow, AI layer, SaaS evolution) |
+| [docs/STANDARD_JSON.md](docs/STANDARD_JSON.md) | Versioned Standard JSON contract — the single source of truth |
+| [docs/PLAN.md](docs/PLAN.md) | Original KMZ→DB→Excel execution plan with build status |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current pipeline internals (modules, scripts, watcher) |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | DB schema, ID scheme, price rules, AI fields, Excel columns |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Setup, running, watcher, troubleshooting |
 
