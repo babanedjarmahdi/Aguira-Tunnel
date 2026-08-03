@@ -7,7 +7,8 @@
     "stage1:extract": "node src/scripts/stage1_extract.js",
     "stage1:loaddb": "node src/scripts/stage1_loaddb.js",
     "stage2:fill": "node src/scripts/stage2_fill.js",
-    "stage2:parse-ai": "node src/scripts/stage2_ai.js"
+    "stage2:parse-ai": "node src/scripts/stage2_ai.js",
+    "watch": "node src/scripts/watch.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",

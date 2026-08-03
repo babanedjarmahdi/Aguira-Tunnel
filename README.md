@@ -1,72 +1,59 @@
 # TerraFlow
 
-CRM real-estate pipeline: **KMZ → JSON → PostgreSQL → AI-filled Excel**.
+**From Google Earth pins to a complete real-estate management system.**
 
-Part of the TerraFlow CRM project. Converts Google Earth `.kmz` (property pins) into a structured property database and automatically fills the CRM Excel workbook.
+TerraFlow is a real-estate CRM platform for the Algerian property market. It
+currently ships a **data pipeline** that turns Google Earth `.kmz` files into a
+structured property database, and it is designed to grow into a **full web CRM**
+(React + Node.js/Express + PostgreSQL) — properties, clients, visits, deals, and
+a dashboard. See the docs for the full vision.
 
-## How it works
+## Pipeline (working today)
 
-1. **Extract** — unzips every `.kmz` in the source folder, parses the `doc.kml`, pulls out name / area / Arabic description / GPS coordinates, and de-duplicates near-identical files.
-2. **AI (Groq)** — sends each description to the Groq API to extract structured fields: property type, status, location, area, price, owner name, owner phone, notes. Applies the Algerian price convention (e.g. `900 مليون` → `9,000,000 DA`, `24 للمتر` → `24,000 DA/m²`).
-3. **Database** — upserts everything into PostgreSQL (Docker).
-4. **Excel** — appends the enriched properties as new rows to a copy of your `العقارات` workbook, generating IDs like `L4001`, `H802`, `K304`, and continuing the `ID_مساعد` counter.
+```
+KMZ files ──► Extract + parse + dedupe ──► properties.json
+              ──► AI enrich (Groq)      ──► properties_ai.json
+              ──► PostgreSQL (Docker)   ──► Excel (filled copy)
+```
 
-## What's new: live file watcher
+- 146 source KMZ files → **147 unique properties**, 0 parse failures, 2 duplicates removed.
+- AI extracts 18 structured fields from Arabic free text (type, status, location, price, owner, phone, notes…).
+- **Live watcher**: add or remove a `.kmz` in the Google Earth folder and the DB + Excel re-sync automatically.
 
-`src/scripts/watch.js` watches the source KMZ folder. When you **add** or **remove** a `.kmz` file, TerraFlow automatically re-syncs:
+## Documentation
 
-- JSON extraction
-- AI enrichment (only new files; already-processed ones are cached)
-- PostgreSQL (rows for removed files are deleted)
-- The filled Excel copy
+| Document | Contents |
+|---|---|
+| [docs/VISION.md](docs/VISION.md) | Product vision, roadmap (Phases 2–5), guiding principles |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current pipeline + target full-stack architecture |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | DB schema, ID scheme, price rules, AI fields, Excel columns |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Setup, running, watcher, troubleshooting |
 
-Run it with:
+## Quick start
 
 ```bash
-npm run watch
+npm install                # install dependencies
+copy .env.example .env     # fill in GROQ_API_KEY + paths (or: cp on unix)
+docker compose up -d       # start PostgreSQL
+npm run stage1:extract     # kmz -> output/json/properties.json
+npm run stage2:parse-ai    # + Groq AI -> output/json/properties_ai.json
+npm run stage1:loaddb      # -> PostgreSQL
+npm run stage2:fill        # -> output/excel/..._filled.xlsx
+npm run watch              # watch source folder, auto re-sync on add/remove
 ```
 
-## Setup
-
-```bash
-npm install            # install dependencies
-cp .env.example .env   # fill in GROQ_API_KEY + paths
-docker compose up -d   # start Postgres
-npm run stage1:extract # unzip + parse + dedupe -> output/json/properties.json
-npm run stage1:loaddb  # JSON -> PostgreSQL
-npm run stage2:parse-ai # enrich descriptions via API -> output/json/properties_ai.json
-npm run stage2:fill    # append rows to a copy of the Excel template
-```
-
-## Pipeline scripts
-
-```bash
-npm run stage1:extract   # kmz -> json
-npm run stage1:loaddb    # json -> postgres
-npm run stage2:parse-ai  # json + API -> properties_ai.json
-npm run stage2:fill      # properties_ai.json -> xlsx
-npm run watch            # watch source folder, auto re-sync on add/remove
-```
-
-## Outputs
-
-All generated data lives under `output/` (git-ignored):
+## Repo layout
 
 ```
-output/json/properties.json        # parsed, de-duplicated properties
-output/json/properties_ai.json     # same, with AI-enriched fields
-output/excel/..._filled.xlsx       # filled copy of your workbook
-output/watcher.log                 # file-watcher activity log
+src/lib/          # pure logic: kmz, extractor, ai
+src/scripts/      # pipeline stages: stage1_*, stage2_*, watch
+schema.sql        # PostgreSQL schema (properties table)
+docker-compose.yml# PostgreSQL 16
+docs/             # vision, architecture, data model, operations
+output/           # generated JSON + Excel (git-ignored)
 ```
 
-## PostgreSQL schema
+## Notes
 
-`schema.sql` creates the `properties` table with:
-
-- `source_file` + `placemark_idx` (unique)
-- `name`, `area_m2`, `description`, `lat`, `lon`, `alt`
-- AI-enriched fields: `property_type`, `status`, `location`, `price`, `price_note`, `owner_name`, `seller`, `owner_phone`, `notes`, `ai_raw`
-
-## Note
-
-The API key and local file paths are stored in `.env` (git-ignored) — never commit them.
+- The Groq API key and local paths live in `.env` (git-ignored) — never commit them.
+- The original Excel template is never overwritten; the pipeline writes a copy.
