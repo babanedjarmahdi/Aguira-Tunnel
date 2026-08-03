@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
 import { EventEmitter } from 'events';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import { runPipeline, createEmitter, loadConfig } from '@terraflow/engine';
 import { createDb } from '@terraflow/database';
@@ -77,8 +79,10 @@ class PipelineService {
 
 const service = new PipelineService(process.env);
 const app = express();
+const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
 app.use(express.json());
+app.use(express.static(publicDir));
 app.use((req, res, next) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');

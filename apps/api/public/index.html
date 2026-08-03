@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TerraFlow API</title>
+<style>
+  :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --ok: #4ade80; --err: #f87171; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; }
+  header span { color: var(--muted); font-size: 13px; }
+  main { padding: 24px; max-width: 960px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .status-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .status-row:last-child { border-bottom: none; }
+  .status-row .k { color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot.running { background: var(--accent); animation: pulse 1s infinite; }
+  .dot.idle { background: var(--ok); }
+  .dot.error { background: var(--err); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  button { background: var(--accent); border: none; color: #0f172a; font-weight: 600; padding: 10px 16px; border-radius: 8px; cursor: pointer; margin-top: 12px; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); margin-left: 8px; }
+  #events { height: 320px; overflow: auto; font: 12px/1.5 ui-monospace, monospace; }
+  #events .ev { padding: 4px 0; border-bottom: 1px solid #1e293b; }
+  #events .t { color: var(--muted); }
+  #events .stage { color: var(--accent); font-weight: 600; }
+  #events .err { color: var(--err); }
+  ul.endpoints { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  ul.endpoints li { padding: 4px 0; }
+  ul.endpoints code { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TerraFlow</h1>
+  <span>import engine &middot; REST API &middot; localhost:3000</span>
+</header>
+<main>
+  <section class="card">
+    <h2>Pipeline status</h2>
+    <div id="status"></div>
+    <button id="run" type="button">Run pipeline (extract &rarr; ai &rarr; db &rarr; fill)</button>
+    <button id="clear" class="secondary" type="button">Clear log</button>
+  </section>
+  <section class="card">
+    <h2>Live events</h2>
+    <div id="events"><div class="muted">connecting to event stream…</div></div>
+  </section>
+  <section class="card" style="grid-column: 1 / -1;">
+    <h2>Endpoints</h2>
+    <ul class="endpoints">
+      <li><code>GET /api/health</code> — liveness + DB check</li>
+      <li><code>GET /api/config</code> — runtime config (no secrets)</li>
+      <li><code>GET /api/status</code> — current / last pipeline job</li>
+      <li><code>POST /api/pipeline</code> — trigger pipeline (202; 409 if running)</li>
+      <li><code>GET /api/pipeline/events</code> — SSE progress stream</li>
+      <li><code>GET /api/properties</code> — property catalog from PostgreSQL</li>
+    </ul>
+  </section>
+</main>
+<script>
+  const statusEl = document.getElementById('status');
+  const eventsEl = document.getElementById('events');
+  const runBtn = document.getElementById('run');
+  const clearBtn = document.getElementById('clear');
+
+  function el(tag, text, cls) {
+    const d = document.createElement(tag);
+    if (text != null) d.textContent = text;
+    if (cls) d.classList.add(cls);
+    return d;
+  }
+
+  async function refreshStatus() {
+    try {
+      const s = await (await fetch('/api/status')).json();
+      const row = (k, v) => { const r = el('div', null, 'status-row'); r.append(el('span', k, 'k'), el('span', v)); statusEl.appendChild(r); };
+      statusEl.innerHTML = '';
+      const running = el('div', null, 'status-row');
+      const dot = el('span', null, 'dot ' + (s.running ? 'running' : (s.lastError ? 'error' : 'idle')));
+      running.append(el('span', 'State', 'k'), dot, el('span', s.running ? 'running' : (s.lastError ? 'failed' : 'idle')));
+      statusEl.appendChild(running);
+      row('Stages', s.stages.length ? s.stages.join(' → ') : '—');
+      row('Started', s.startedAt ? new Date(s.startedAt).toLocaleTimeString() : '—');
+      row('Finished', s.finishedAt ? new Date(s.finishedAt).toLocaleTimeString() : '—');
+      const ok = s.results && s.results.summary ? s.results.summary.ok.length : '—';
+      const failed = s.results && s.results.summary ? s.results.summary.failed.length : '—';
+      row('OK / Failed', ok + ' / ' + failed);
+      runBtn.disabled = s.running;
+    } catch (e) {
+      statusEl.innerHTML = '';
+      statusEl.append(el('div', 'API unreachable: ' + e.message, 'err'));
+    }
+  }
+
+  const ev = new EventSource('/api/pipeline/events');
+  ev.onmessage = (msg) => {
+    try {
+      const d = JSON.parse(msg.data);
+      const div = el('div', null, 'ev');
+      div.append(el('span', '[' + d.ts.slice(11, 19) + '] ', 't'));
+      if (d.type.startsWith('stage')) div.append(el('span', d.type.replace('stage:', '') + ' ' + (d.payload.stage || ''), 'stage'), el('span', ' — ' + JSON.stringify(d.payload).slice(0, 160)));
+      else if (d.type === 'log') div.append(el('span', d.payload.message || ''));
+      else div.append(el('span', d.type + ' — ' + JSON.stringify(d.payload).slice(0, 160)));
+      eventsEl.prepend(div);
+    } catch { /* ignore non-JSON keep-alives */ }
+  };
+  ev.onerror = () => eventsEl.prepend(el('div', 'event stream disconnected — retrying…', 'err'));
+
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true;
+    try {
+      const r = await fetch('/api/pipeline', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      eventsEl.prepend(el('div', (r.ok ? 'pipeline started' : 'HTTP ' + r.status) + ' — ' + await r.text(), r.ok ? 'stage' : 'err'));
+    } catch (e) {
+      eventsEl.prepend(el('div', 'error: ' + e.message, 'err'));
+    }
+    setTimeout(refreshStatus, 500);
+  });
+  clearBtn.addEventListener('click', () => { eventsEl.innerHTML = ''; });
+
+  refreshStatus();
+  setInterval(refreshStatus, 2000);
+</script>
+</body>
+</html>
