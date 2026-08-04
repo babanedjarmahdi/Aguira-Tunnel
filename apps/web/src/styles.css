@@ -123,6 +123,11 @@ code, pre, .mono { font-family: var(--mono); }
 }
 .nav-item.disabled { opacity: 0.45; cursor: not-allowed; }
 .nav-item .coming { margin-left: auto; font-size: 9.5px; color: var(--text-3); }
+.nav-item .pro-tag {
+  margin-left: auto; font-size: 8.5px; font-weight: 700; letter-spacing: 0.6px;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 5px; padding: 1px 5px;
+  opacity: 0.85;
+}
 
 .sidebar .spacer { flex: 1; }
 

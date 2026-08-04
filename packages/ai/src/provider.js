@@ -8,6 +8,7 @@
  *                                              opts: { signal?: AbortSignal,
  *                                                      retries?: number }
  *   pacingMs()           -> number             suggested delay between calls (rate limits)
+ *   test(opts?)          -> Promise<void>      connection probe; throws on failure
  *
  * Providers must reject with an AbortError (name === 'AbortError') when the
  * passed signal fires. Providers are stateless beyond config. Add new providers
@@ -21,5 +22,9 @@ export class AIProvider {
 
   pacingMs() {
     return 0;
+  }
+
+  async test() {
+    throw new Error('Not implemented');
   }
 }

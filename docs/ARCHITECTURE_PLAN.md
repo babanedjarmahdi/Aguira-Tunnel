@@ -500,7 +500,9 @@ GET    /api/v1/pipeline/events         # SSE: jobs + watch events
 `POST /api/jobs/:id/apply`, `POST /api/jobs/:id/cancel`,
 `GET /api/jobs/:id/download`, workflow CRUD under
 `/api/workflows`, watch as `POST /api/watch/start` · `POST /api/watch/stop` ·
-`GET /api/watch`, and SSE on `/api/pipeline/events` / `/api/jobs/events`
+`GET /api/watch`, AI settings as `GET|PUT /api/settings/ai` ·
+`POST /api/settings/ai/test` (persisted in `output/settings/ai.json`), and SSE on
+`/api/pipeline/events` / `/api/jobs/events`
 (`job:*` plus `watch:change`, `watch:log`, `watch:state`). The `/api/v1/`
 list above is the target contract; the current server is its working
 implementation, and the versioned prefix is a v1.0 task.

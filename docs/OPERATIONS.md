@@ -46,7 +46,8 @@ npm.cmd run pipeline   # extract + ai + loaddb + fill
 | Variable | Example |
 |---|---|
 | `GROQ_API_KEY` | `gsk_...` (git-ignored) |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` (free-tier only) |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` (optional) |
 | `PGHOST` / `PGPORT` | `localhost` / `5432` |
 | `PGUSER` / `PGPASSWORD` / `PGDATABASE` | `terraflow` / `terraflow` / `terraflow` |
 | `SOURCE_KMZ_DIR` | `C:/Users/USER/Documents/MEGA UPLOAUD/GOOGLE EARTH` |
@@ -118,6 +119,8 @@ npm.cmd run dev        # Vite dev server on http://localhost:5173 (API must be u
 Endpoints today:
 
 - Core: `GET /api/health | /api/config | /api/status | /api/properties`
+- AI settings: `GET|PUT /api/settings/ai` (key is masked; free-tier model
+  allow-list) · `POST /api/settings/ai/test` (connection probe)
 - Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`,
   `POST /api/excel/mapping/profile` (save mapping profile)
 - Jobs: `GET|POST /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,

@@ -16,12 +16,17 @@ import About from './pages/About';
 function Shell() {
   const loc = useLocation();
   const nav = useNavigate();
-  const [mode, setMode] = useState('basic');
+  const [mode, setMode] = useState(() => localStorage.getItem('tf:mode') || 'basic');
   const [statusMsg, setStatusMsg] = useState('TerraFlow Engine ready.');
   const [running, setRunning] = useState(false);
   const [provider, setProvider] = useState('');
   const { data: status } = usePoll(getStatus, 3000);
   const { data: config } = usePoll(getConfig, 8000);
+
+  const switchMode = (m) => {
+    setMode(m);
+    localStorage.setItem('tf:mode', m);
+  };
 
   const sse = usePipelineEvents((ev) => {
     if (ev.type === 'stage:start') { setRunning(true); setStatusMsg(`Running stage ${ev.payload?.stage}…`); }
@@ -37,7 +42,7 @@ function Shell() {
 
   return (
     <div className="app-shell">
-      <Sidebar route={loc.pathname} go={go} mode={mode} setMode={setMode} />
+      <Sidebar route={loc.pathname} go={go} mode={mode} setMode={switchMode} />
       <div className="main">
         <TopBar route={loc.pathname} provider={prov} connected={sse.connected} />
         <Routes>

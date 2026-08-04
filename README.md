@@ -113,6 +113,8 @@ workbook (backs it up first) — use it deliberately, prefer `fill` otherwise.
 | GET | `/api/status` | Current / last pipeline job state |
 | POST | `/api/pipeline` | Trigger `extract → ai → db → fill` (202; 409 if running) |
 | GET | `/api/pipeline/events` | SSE: replayed history + live progress events |
+| GET/PUT | `/api/settings/ai` | Read / save AI settings (Groq free-tier models only; key never returned) |
+| POST | `/api/settings/ai/test` | Probe the configured provider/credentials (latency + model) |
 | GET | `/api/properties` | Property catalog from PostgreSQL |
 | POST | `/api/uploads` | Stage an input file or folder |
 | POST | `/api/excel/inspect` · `/api/excel/mapping` | Understand a workbook; suggest + validate mapping |

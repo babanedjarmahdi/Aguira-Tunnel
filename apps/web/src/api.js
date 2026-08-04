@@ -62,6 +62,15 @@ export const getWatch = () => api('/api/watch');
 export const watchStart = () => api('/api/watch/start', { method: 'POST' });
 export const watchStop = () => api('/api/watch/stop', { method: 'POST' });
 
+// ---- AI settings ----------------------------------------------------------
+export const getAiSettings = () => api('/api/settings/ai');
+export const updateAiSettings = (body) => api('/api/settings/ai', {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const testAiConnection = (body = {}) => api('/api/settings/ai/test', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+
 // ---- Workflows ------------------------------------------------------------
 export const getWorkflows = () => api('/api/workflows');
 export const createWorkflow = (body) => api('/api/workflows', {

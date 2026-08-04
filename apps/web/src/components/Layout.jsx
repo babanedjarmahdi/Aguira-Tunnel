@@ -6,12 +6,12 @@ export const NAV = [
   { id: '/', label: 'Dashboard', icon: LayoutDashboard },
   { id: '/import', label: 'Import Jobs', icon: UploadCloud },
   { id: '/workflows', label: 'Workflows', icon: Workflow },
-  { id: '/ai', label: 'AI Configuration', icon: Sparkles },
-  { id: '/templates', label: 'Excel Templates', icon: FileSpreadsheet },
+  { id: '/ai', label: 'AI Configuration', icon: Sparkles, pro: true },
+  { id: '/templates', label: 'Excel Templates', icon: FileSpreadsheet, pro: true },
 ];
 export const NAV_BOTTOM = [
-  { id: '/settings', label: 'Settings', icon: Settings },
-  { id: '/logs', label: 'Logs', icon: TerminalSquare },
+  { id: '/settings', label: 'Settings', icon: Settings, pro: true },
+  { id: '/logs', label: 'Logs', icon: TerminalSquare, pro: true },
   { id: '/about', label: 'About', icon: Info },
 ];
 
@@ -33,6 +33,7 @@ export function Sidebar({ route, go, mode, setMode }) {
           <div key={n.id} className={`nav-item ${route === n.id ? 'active' : ''}`} onClick={() => go(n.id)}>
             <Icon />
             {n.label}
+            {n.pro && <span className="pro-tag">PRO</span>}
           </div>
         );
       })}
@@ -50,6 +51,7 @@ export function Sidebar({ route, go, mode, setMode }) {
           <div key={n.id} className={`nav-item ${route === n.id ? 'active' : ''}`} onClick={() => go(n.id)}>
             <Icon />
             {n.label}
+            {n.pro && <span className="pro-tag">PRO</span>}
           </div>
         );
       })}
@@ -87,8 +89,8 @@ export function StatusBar({ msg, running, connected }) {
     <footer className="statusbar">
       <Dot tone={running ? 'info' : 'ok'} />
       <span className="live">{msg}</span>
-      <span className="nowrap">v0.4 · {connected ? 'SSE connected' : 'SSE offline'}</span>
-      <span className="nowrap">localhost:5173</span>
+      <span className="nowrap">v0.5 · {connected ? 'SSE connected' : 'SSE offline'}</span>
+      <span className="nowrap">localhost:3000</span>
     </footer>
   );
 }

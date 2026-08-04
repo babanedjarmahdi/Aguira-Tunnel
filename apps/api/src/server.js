@@ -8,7 +8,9 @@ import {
   runPipeline, createEmitter, loadConfig, createJob, getJob, listJobs, updateJob, pushJobLog,
   buildDraft, getDraft, applyDraft, createWatchService, JOBS_DIR, UPLOADS_DIR, MAPPINGS_DIR,
   createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkflow, markWorkflowRun,
+  loadAiSettings, saveAiSettings, AI_DEFAULTS,
 } from '@terraflow/engine';
+import { testAiConnection, GROQ_FREE_MODELS } from '@terraflow/ai';
 import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
 import { createDb } from '@terraflow/database';
 
@@ -157,7 +159,7 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.static(publicDir));
 app.use((req, res, next) => {
   res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -194,6 +196,70 @@ app.get('/api/config', (req, res) => {
       database: c.db.PGDATABASE || 'terraflow',
     },
   });
+});
+
+// ---- AI settings (Professional mode) -------------------------------------
+const AI_SETTING_KEYS = ['provider', 'model', 'apiKey', 'baseUrl', 'temperature', 'maxTokens', 'prompt', 'pacingTokensPerRequest', 'pacingTpmLimit'];
+const AI_NUMERIC_KEYS = ['temperature', 'maxTokens', 'pacingTokensPerRequest', 'pacingTpmLimit'];
+
+function publicAiSettings() {
+  const ai = loadConfig(process.env).ai;
+  const saved = loadAiSettings();
+  const key = ai.apiKey || '';
+  return {
+    provider: ai.provider,
+    model: ai.model,
+    baseUrl: ai.baseUrl,
+    temperature: ai.temperature,
+    maxTokens: ai.maxTokens,
+    prompt: ai.prompt || '',
+    pacingTokensPerRequest: ai.pacingTokensPerRequest,
+    pacingTpmLimit: ai.pacingTpmLimit,
+    apiKeySet: key.length > 0,
+    apiKeyHint: key.length > 4 ? `••••${key.slice(-4)}` : '',
+    source: saved ? 'settings' : 'env',
+    updatedAt: saved?.updatedAt || null,
+    models: GROQ_FREE_MODELS,
+    defaults: AI_DEFAULTS,
+  };
+}
+
+app.get('/api/settings/ai', (req, res) => res.json(publicAiSettings()));
+
+app.put('/api/settings/ai', (req, res) => {
+  const body = req.body || {};
+  const patch = {};
+  for (const k of AI_SETTING_KEYS) {
+    if (body[k] === undefined) continue;
+    patch[k] = AI_NUMERIC_KEYS.includes(k) && body[k] !== '' ? Number(body[k]) : body[k];
+  }
+  if (patch.provider !== undefined && patch.provider !== 'groq') {
+    return res.status(400).json({ error: `Unsupported AI provider: "${patch.provider}". Supported: groq` });
+  }
+  if (patch.model !== undefined && !GROQ_FREE_MODELS.includes(patch.model)) {
+    return res.status(400).json({ error: `Model "${patch.model}" is not on the Groq free tier. Pick one of: ${GROQ_FREE_MODELS.join(', ')}` });
+  }
+  if (patch.temperature !== undefined && (Number.isNaN(patch.temperature) || patch.temperature < 0 || patch.temperature > 2)) {
+    return res.status(400).json({ error: 'temperature must be a number between 0 and 2' });
+  }
+  try {
+    saveAiSettings(patch);
+    res.json(publicAiSettings());
+  } catch (e) {
+    res.status(500).json({ error: `Failed to save AI settings: ${e.message}` });
+  }
+});
+
+app.post('/api/settings/ai/test', async (req, res) => {
+  const saved = loadConfig(process.env).ai;
+  const body = req.body || {};
+  const result = await testAiConnection({
+    provider: body.provider || saved.provider,
+    model: body.model || saved.model,
+    baseUrl: body.baseUrl || saved.baseUrl,
+    apiKey: body.apiKey || saved.apiKey,
+  });
+  res.json(result);
 });
 
 app.get('/api/status', (req, res) => res.json(service.status()));
@@ -518,6 +584,7 @@ app.listen(PORT, () => {
   console.log(`TerraFlow API listening on http://localhost:${PORT}`);
   console.log(`  GET  /api/health | /api/config | /api/status | /api/properties`);
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
+  console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test`);
   console.log(`  GET  /api/jobs | /api/jobs/:id | /api/watch`);
   console.log(`  POST /api/jobs | /api/jobs/:id/run | /api/jobs/:id/draft | /api/jobs/:id/apply`);
   console.log(`  GET  /api/jobs/:id/download | /api/jobs/:id/draft`);

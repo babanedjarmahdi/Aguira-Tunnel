@@ -1,7 +1,19 @@
 import { AIProvider } from './provider.js';
 import { abortableSleep } from '@terraflow/shared';
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// Groq free-tier models. The pipeline and the Professional UI restrict model
+// selection to this list (free tier only).
+export const GROQ_FREE_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'llama-3.2-3b-preview',
+  'llama-3.2-1b-preview',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'mixtral-8x7b-32768',
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'qwen/qwen2.5-coder-32b',
+];
 
 const SYSTEM_PROMPT = `You are an expert Arabic real-estate data extractor working for a CRM system.
 You will receive a property record (name + Arabic free-text description).
@@ -35,20 +47,31 @@ function retryAfterMs(value) {
 }
 
 export class GroqProvider extends AIProvider {
-  constructor({ apiKey, model }) {
+  constructor(config = {}) {
     super();
-    this.apiKey = apiKey;
-    this.model = model || 'llama-3.3-70b-versatile';
+    this.apiKey = config.apiKey || '';
+    this.model = config.model || 'llama-3.3-70b-versatile';
+    this.baseUrl = (config.baseUrl || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
+    this.temperature = config.temperature ?? 0;
+    this.maxTokens = config.maxTokens ?? 512;
+    this.prompt = config.prompt || null;
+    this.pacingTokensPerRequest = config.pacingTokensPerRequest ?? 700;
+    this.pacingTpmLimit = config.pacingTpmLimit ?? 12000;
+  }
+
+  chatUrl() {
+    return `${this.baseUrl}/chat/completions`;
   }
 
   async enrich(entry, { signal, retries = 8 } = {}) {
     const body = {
       model: this.model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: this.prompt || SYSTEM_PROMPT },
         { role: 'user', content: `NAME: ${entry.name}\nDESCRIPTION:\n${entry.description}\n\nReturn the JSON object.` },
       ],
-      temperature: 0,
+      temperature: this.temperature,
+      max_tokens: this.maxTokens,
       response_format: { type: 'json_object' },
     };
 
@@ -58,7 +81,7 @@ export class GroqProvider extends AIProvider {
     for (let attempt = 0; attempt <= retries; attempt++) {
       let res;
       try {
-        res = await fetch(GROQ_URL, {
+        res = await fetch(this.chatUrl(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -94,8 +117,33 @@ export class GroqProvider extends AIProvider {
     throw lastErr;
   }
 
-  // Throttle to stay under free-tier TPM: approx (tokensPerRequest / tpmLimit) seconds between calls.
-  pacingMs(tokensPerRequest = 700, tpmLimit = 12000) {
-    return Math.max(300, Math.ceil((tokensPerRequest / tpmLimit) * 60000));
+  // Minimal probe: verifies key + model + endpoint reachability. Throws on failure.
+  async test({ signal } = {}) {
+    const res = await fetch(this.chatUrl(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: 'user', content: 'Reply with the single word: OK' }],
+        temperature: 0,
+        max_tokens: 4,
+      }),
+    });
+    if (res.status === 429) {
+      throw new Error('Rate limited (429) — try again in a minute');
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Groq API ${res.status}: ${text.slice(0, 300)}`);
+    }
+    await res.json();
+  }
+
+  // Throttle to stay under the configured TPM limit between calls.
+  pacingMs() {
+    return Math.max(300, Math.ceil((this.pacingTokensPerRequest / this.pacingTpmLimit) * 60000));
   }
 }
