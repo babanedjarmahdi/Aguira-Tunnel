@@ -48,51 +48,58 @@ are new workflow definitions, not new products.
   - `GET /api/properties` — property catalog from PostgreSQL.
 - Verified end-to-end: full pipeline via API in ~3 s (AI stage resumes from cache).
 
-## v0.4 — Workflow MVP: the safe import loop 🔄 (in progress)
+## v0.4 — Workflow MVP: the safe import loop ✅
 
 > Scope redefined from the earlier "importer UI" plan to the product decision:
 > TerraFlow Engine is a workflow engine; the frontend is the Basic-mode face of
 > the MVP workflow.
 
-**Workflow & Job model**
-- Workflow becomes the core abstraction: a workflow is `input source → steps →
-  destination`. The KMZ → AI → Excel workflow is the first definition.
+**Workflow & Job model** ✅
+- Workflow became the core abstraction: a workflow is `input source → steps →
+  destination` (persisted store `output/jobs/workflows.json`; create/rename/
+  delete/run; jobs carry `workflowId`). The KMZ → AI → Excel workflow is the
+  first definition.
 - Universal **Job** record: id, start / finish time, duration, status, workflow
   type, processed files, created / updated / skipped records, warnings, errors,
-  execution logs. Jobs persist and become the system history.
+  execution logs. Jobs persist (`output/jobs/jobs.json`) and are the system
+  history.
 
-**Safe execution model**
+**Safe execution model** ✅
 - `Run Workflow → Generate Draft → Preview Changes → User Review → Apply → Update
   Destination`. The destination is **never** modified before the user reviews.
-- Draft preview visually distinguishes: new rows, modified rows, skipped rows,
-  warnings, AI uncertainties.
+- Draft preview (`output/jobs/job-<id>/draft.json`) shows the exact rows and
+  row range that would be written; apply writes the filled copy (or the original
+  with a forced backup).
 
-**Input sources**
-- Single KMZ file, whole folder, and **watch mode** (watch a folder or a single
-  file → auto-run the workflow on change; visible "Watching…" state, start/stop).
-- Browser pickers (file + folder) for one-shot imports; server-side watch for
-  automation.
+**Input sources** ✅
+- Single KMZ file, whole folder (browser upload), and **watch mode**: server-side
+  `createWatchService` with debounce; start/stop from the UI or API
+  (`POST /api/watch/start|stop`); each change batch becomes a `watch-sync` Job;
+  visible **"Watching…"** state.
 
-**Destination understanding**
-- `inspectExcel`: detect sheets, headers, sample rows, the data sheet, and how
-  AI fields map to columns; auto-suggest a mapping; validate (missing / duplicate
-  columns); support creating missing columns automatically. Mapping profiles are
-  saved with the template.
+**Destination understanding** ✅
+- `inspectExcel`: sheets, headers, sample rows, data sheet and start row.
+- Auto-suggested mapping + **validation** (`ok / missing / duplicate-column /
+  mismatch / duplicate-header`), **auto-create** of missing columns on apply,
+  and **mapping profiles saved per template** (`output/mappings/`,
+  `POST /api/excel/mapping/profile`).
 
-**UI — Basic mode (6 visible steps)**
+**UI — Basic mode (6 visible steps)** ✅
 1. Choose input (KMZ file / folder / watch)
-2. Choose Excel template
+2. Choose Excel template (+ write mode + column mapping with validation)
 3. Run workflow
-4. Progress
+4. Progress (live SSE stages + log)
 5. Review results (draft preview in-app)
 6. Apply changes (download / write destination)
 
 Everything else — provider, AI settings, advanced mapping, developer options,
 logs, debug — stays hidden in Basic mode and unlocks in v0.5 (Professional mode).
 
-**API**
-- Job-based endpoints (upload, inspect-excel, mapping, run-with-mapping, draft
-  preview, apply, watch start/stop/status, download). SSE extended to watch events.
+**API** ✅
+- Job-based endpoints (upload, inspect-excel, mapping + profile, run-with-mapping,
+  draft preview, apply, watch start/stop/status, download). SSE streams job +
+  watch events (`/api/jobs/events`, `watch:change` / `watch:log` / `watch:state`).
+- Served on one port: the API builds and serves the web UI on `http://localhost:3000`.
 
 ## v0.5 — Professional mode & workflow building blocks ⏳
 

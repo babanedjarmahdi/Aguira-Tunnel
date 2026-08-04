@@ -17,21 +17,25 @@ model, draft → preview → apply, scalability, ecosystem) lives in
  ┌─────────────────────────────────────────────────────────────┐
  │                         TERRAFLOW ENGINE                      │
  │                                                               │
- │  apps/web (React + Vite) ──REST + SSE──► apps/api (Express)    │
+ │  apps/web (React + Vite) ──REST + SSE──► apps/api (Express,   │
+ │                          served from :3000, single port)      │
  │                                                               │
  │  packages/engine        the orchestration layer (UI-agnostic) │
- │    orchestrator.js      runPipeline({ stages, env, emitter })  │
- │    stages.js            extract → ai → db → fill (+ original)  │
+ │    orchestrator.js      runPipeline({ job, stages, env,       │
+ │                         emitter })                            │
+ │    jobs.js / workflows.js   Job store + workflow store        │
+ │    draft.js             draft → preview → apply state machine │
+ │    stages.js            extract → ai → db → fill (+ original) │
  │    kmz.js / extractor.js   KMZ input adapter (unzip/parse/dedupe)│
- │    watch.js             CLI file watcher (folder → re-sync)     │
+ │    watch.js             WatchService (start/stop, debounce)   │
  │    config.js / events.js / cli.js                                │
  │       │                                                         │
  │  ┌────┴───────────┐  ┌───────────────┐  ┌────────────────────┐  │
  │  │ packages/ai    │  │ packages/excel │  │ packages/database  │  │
  │  │ AIProvider     │  │ Excel output   │  │ Postgres output    │  │
  │  │  interface     │  │  adapter       │  │  adapter           │  │
- │  │ Groq adapter   │  │ fill/mapping/  │  │ pg client +        │  │
- │  │ createProvider │  │ price          │  │ loadFromJsonFiles  │  │
+ │  │ Groq adapter   │  │ fill/inspect/  │  │ pg client +        │  │
+ │  │ createProvider │  │ mapping/rows   │  │ loadFromJsonFiles  │  │
  │  └────┬───────────┘  └────┬──────────┘  └────┬───────────────┘  │
  │       │                  │                  │                   │
  │  packages/shared: normalize.js · price.js · standard.js (canonical JSON validation)
@@ -42,8 +46,8 @@ model, draft → preview → apply, scalability, ecosystem) lives in
    │ (Google Earth│   │ (Docker)      │   │ (CRM workbook;  │
    │  folder, .kmz)│  │ terraflow DB  │   │  a copy is      │
    └─────────────┘   └──────────────┘   │  written, never  │
-                                        │  the original)   │
-                                        └──────────────────┘
+                                         │  the original)   │
+                                         └──────────────────┘
 ```
 
 **Invariant (D3/D17):** the engine owns all business logic; `apps/api` and
@@ -56,9 +60,9 @@ model, draft → preview → apply, scalability, ecosystem) lives in
 
 | Package | Responsibility |
 |---|---|
-| `packages/engine` | The workflow engine. `runPipeline()` orchestrates stages; `extractor.js`/`kmz.js` parse and dedupe KMZ; `stages.js` defines each stage; `watch.js` is the CLI watcher; `config.js` reads `.env`; `events.js` defines structured events; `cli.js` exposes subcommands. |
+| `packages/engine` | The workflow engine. `runPipeline({ job })` orchestrates stages; `jobs.js`/`workflows.js` persist Jobs + workflow definitions; `draft.js` runs the draft→preview→apply state machine; `extractor.js`/`kmz.js` parse and dedupe KMZ; `stages.js` defines each stage; `watch.js` is the WatchService (start/stop); `config.js` reads `.env`; `events.js` defines structured events; `cli.js` exposes subcommands. |
 | `packages/ai` | AI layer. `provider.js` defines the `AIProvider` interface (enrich + pacing); `groq.js` is today's implementation; `index.js` exports `createProvider()`. Provider is chosen by config — no engine code depends on Groq directly (D4). |
-| `packages/excel` | Excel **output adapter**. `fill.js` (copy-fill + in-place fill), `mapping.js` (field → column mapping), `price.js` (DZD price/location display formatters). |
+| `packages/excel` | Excel **output adapter**. `fill.js` (copy-fill + in-place fill), `inspect.js` (`inspectExcel`, `buildMapping`, validation, mapping profiles), `rows.js` (row math), `mapping.js` (field → column), `price.js` (DZD price/location display formatters). |
 | `packages/database` | PostgreSQL **output adapter**. `client.js` wraps `pg`; sync/upsert of canonical records (`loadFromJsonFiles`). |
 | `packages/shared` | Pure domain logic, no I/O: Arabic text normalization, DZD price math, canonical record JSON validation. |
 
@@ -100,32 +104,33 @@ over the engine (D3).
 | GET | `/api/pipeline/events` | SSE: replayed history + live progress events |
 | GET | `/api/properties` | Property catalog from PostgreSQL |
 
-> v0.4 adds the **job-based API** (uploads, excel inspect/mapping, jobs, draft,
-> apply, watch) — see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §11.
+> v0.4 added the **job-based API** (uploads, excel inspect/mapping + profiles,
+> jobs, draft, apply, watch start/stop, workflows) served with the web UI on one
+> port — see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §11.
 
 ---
 
-## 5. The live watcher
+## 5. Watch mode
 
-`packages/engine/src/watch.js` (CLI: `npm run watch`) watches `SOURCE_KMZ_DIR`.
-Any `.kmz` **added or removed** triggers a full re-sync after a 1.5 s debounce,
-guarded against overlapping runs, logs to `output/watcher.log`.
-
-In v0.4 the watcher becomes a **WatchService** (server-side, folder + single-file,
-start/stop, SSE events) — the first automation trigger for the Job model.
+`packages/engine/src/watch.js` — the **WatchService** (server-side, debounced,
+start/stop via UI/API). While watching, any `.kmz` added or removed in
+`SOURCE_KMZ_DIR` queues a `watch-sync` Job (extract → AI → database) after a
+1.5 s debounce. `POST /api/watch/start|stop` + `GET /api/watch`; SSE
+`watch:change` / `watch:log` / `watch:state`. The CLI (`npm run watch`) wraps the
+same service.
 
 ---
 
 ## 6. Current monorepo layout
 
 ```
-packages/engine/src/   # orchestrator, stages, extractor, kmz, watch, config, events, cli
+packages/engine/src/   # orchestrator, stages, extractor, kmz, watch, jobs, workflows, draft, config, events, cli
 packages/ai/src/       # provider (interface), groq, index
-packages/excel/src/    # fill, mapping, price, index
+packages/excel/src/    # fill, inspect, rows, mapping, price, index
 packages/database/src/ # client, index
 packages/shared/src/   # normalize, price, standard, index
-apps/api/              # Express REST API + SSE
-apps/web/              # React + Vite frontend (v0.4 UI, dark premium theme)
+apps/api/              # Express REST API + SSE, serves the web UI on :3000
+apps/web/              # React + Vite frontend (Basic 6-step wizard + jobs + workflows)
 docs/                  # this documentation suite
 output/                # generated artifacts (git-ignored)
 ```

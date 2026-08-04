@@ -168,6 +168,74 @@ engine through its API, they never re-implement business rules. Settings that
 don't have an engine-backed behavior (e.g. "D8-bypass in-place apply" from D14)
 are gated and warned, not hard-coded in the UI. Any mode is a thin adapter.
 
+## D18 — TerraFlow is a workflow engine; Excel is one output adapter
+
+**Status:** Active (v0.4).
+
+The product is a **workflow engine**, not an Excel tool. Excel is one destination
+the engine fills. KMZ→AI→Excel is the first workflow *definition*; future
+workflows (PDF→OCR→Database, CSV→Cleaning→CRM, Images→AI→Metadata,
+API→Transformation→Database) are new definitions against the same engine, never
+new products. Everything that smells like "Excel tool" is really "one adapter."
+
+## D19 — Every execution is a Job, and Jobs are the system history
+
+**Status:** Active (v0.4).
+
+A Job is the universal record of a run (id, workflow type, timings, status,
+processed files, created/updated/skipped counts, warnings, errors, log). Jobs
+persist in `output/jobs/` and become the history of the system — reusable by
+future TerraFlow products (CRM, Cloud Dashboard). Safe execution is a Job state
+machine: `run → draft → preview → review → apply` (see D13).
+
+## D20 — Basic / Professional are views, not products
+
+**Status:** Active.
+
+Two UI modes, one product. **Basic** is a guided, near-automatic flow with
+configuration hidden; **Professional** unlocks AI provider, prompts, mapping,
+workflow builder, dry run, logs, job history and diagnostics. A mode changes
+*what is shown*, never the engine or the destination strategy (see D16).
+
+## D21 — Desktop-first, local-first for this MVP
+
+**Status:** Active.
+
+The product ships desktop-first and local-first: it runs on the user's machine,
+stores data and outputs locally, and needs no accounts or cloud. The future
+ecosystem ladder (Desktop → Agent → Cloud → CRM → Automation → Multi-user) is
+vision only; nothing in the MVP requires it. No real auth/cloud scaffolding now.
+
+## D22 — Workflow logic never depends on the UI; business logic never depends on React
+
+**Status:** Active (invariant).
+
+`@terraflow/engine` and `@terraflow/*` packages are UI-agnostic and callable
+programmatically (CLI, API, tests, future apps). The web app only adapts engine
+behavior via the REST API. Nothing about a workflow's behavior may change just
+because a different frontend exists.
+
+## D23 — Plugins are the extension mechanism; never forks
+
+**Status:** Active (contracts now, registry in v0.7).
+
+TerraFlow grows by **plugins against stable contracts**, not engine rewrites.
+Four plugin types: **Input** (`read(source, ctx)`), **Output**
+(`inspect`/`draft`/`preview`/`apply`), **AI Provider** (`extract`), **Workflow**
+(bundled end-to-end definitions). Today's adapters already expose these shapes;
+manifest + registry + local plugin directory arrive in v0.6/v0.7 (see
+ARCHITECTURE_PLAN §6).
+
+## D24 — Workspaces are the unit of organization and local-first persistence
+
+**Status:** Active in shape; implemented in v0.7.
+
+A workspace contains **Projects · Workflows · Templates · Jobs · Settings**. The
+data model is workspace-aware from v0.4 (reserved `workspace_id`), one workspace =
+one directory (`output/workspaces/<id>/`) whose archive is the backup/restore
+unit. In the cloud era a workspace maps cleanly to a tenant (see
+ARCHITECTURE_PLAN §7).
+
 ---
 
 *Next: [ROADMAP.md](ROADMAP.md) · [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md)*

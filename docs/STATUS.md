@@ -18,7 +18,7 @@
 
 The project ships in 4 parts, mapped to ROADMAP versions.
 
-### Part 1 — Workflow MVP: the safe import loop (ROADMAP v0.4) 🔄
+### Part 1 — Workflow MVP: the safe import loop (ROADMAP v0.4) ✅
 
 The engine becomes a real workflow engine: Job model, safe execution
 (draft → preview → review → apply), job-based API + SSE, a real 6-step Basic UI.
@@ -96,18 +96,32 @@ The engine becomes a real workflow engine: Job model, safe execution
 - [x] `vite build` clean; runtime smoke test (upload → job → draft → apply →
   download) OK; workflow create→run→status verified.
 
-#### 1.9 Docs-alignment pass (approved plan) ⏳
-- [ ] `docs/VISION.md` — reframe to workflow-engine narrative (mostly present;
-  tighten §3 "where we are").
-- [ ] `docs/ROADMAP.md` — rewrite v0.4–v0.7 to the approved scope.
-- [ ] `docs/ARCHITECTURE_PLAN.md` — heavy edit (§1–§4, §7, §9, §13–§15, §18–§19).
-- [ ] `docs/DECISIONS.md` — add D11–D19.
-- [ ] `docs/PLAN.md` — header note pointing to ROADMAP/ARCHITECTURE_PLAN.
-- [ ] `docs/ARCHITECTURE.md` — fix stale `src/lib`/`src/scripts` references.
-- [ ] `docs/STANDARD_JSON.md` — reframe intro as canonical record contract.
-- [ ] `docs/DATA_MODEL.md` — add universal Job record model + workspace awareness.
-- [ ] `docs/OPERATIONS.md` — script names/jobs+drafts dirs (partial done).
-- [ ] `README.md` — product reframe (mostly present; add STATUS link + Job blurbs).
+#### 1.9 Docs-alignment pass (approved plan) ✅
+- [x] `docs/VISION.md` — §3 "where we are" updated (safe loop Jobs/draft/apply,
+  Watch mode start/stop, single-port monorepo); v0.4 section marked ✅.
+- [x] `docs/ROADMAP.md` — v0.4 marked ✅ with full done breakdown (workflows/jobs,
+  safe execution, input sources incl. watch, destination understanding, 6-step UI,
+  API, single-port); v0.5–v0.7 rows aligned.
+- [x] `docs/ARCHITECTURE_PLAN.md` — aligned: §4 folder tree (rows/inspect/workflows/
+  kmz/mappings + serve-from-web note), §11 live-v0.4 API note, §15 roadmap (v0.4 ✅),
+  §16 MVP "shipped in v0.4"; §6/§7/§8/§9/§18/§19 already aligned.
+- [x] `docs/DECISIONS.md` — added **D18–D24** (engine/Excel-one-adapter, Jobs=system
+  history, Basic/Professional=views not products, desktop-first/local-first, workflow
+  logic never depends on UI, plugins, workspaces); D11–D17 already present.
+- [x] `docs/PLAN.md` — header note now points to STATUS.md too.
+- [x] `docs/ARCHITECTURE.md` — single-port diagram (`apps/web ←REST+SSE→ apps/api`
+  served from :3000), module table updated, new §5 Watch mode section, folder
+  listing; stale references removed.
+- [x] `docs/STANDARD_JSON.md` — already reframed as canonical record contract; no
+  change needed.
+- [x] `docs/DATA_MODEL.md` — Job record fields updated (`workflowType` examples,
+  `workflowId`, draft/output object rows), workspace reservations noted, draft/output
+  paths (`output/jobs/job-<id>/`).
+- [x] `docs/OPERATIONS.md` — watch rewritten to user-controlled WatchService +
+  API/SSE events; outputs table (filled/jobs/workflows/mappings); API list expanded.
+- [x] `README.md` — STATUS link + docs-table row, capabilities reframe (workflows/
+  jobs, destination understanding, single-port, user-controlled watch), full
+  job-based API table.
 
 ### Part 2 — Professional mode & workflow building blocks (ROADMAP v0.5) ⏳
 - [ ] Professional mode unlocks: AI provider config, prompt configuration,
@@ -155,27 +169,25 @@ The engine becomes a real workflow engine: Job model, safe execution
 |---|---|---|---|
 | 2026-08-04 | Part 1 loop: input-driven `runPipeline({ job })`, Job store, draft/apply, job-based API, real Basic 6-step wizard, real Jobs page, rows/inspect refactor, WatchService | engine `jobs/draft/stages/orchestrator/extractor/watch`, excel `rows/inspect/fill`, `apps/api/server.js`, `apps/web/*` | `8bf0031` (pushed) |
 | 2026-08-04 | Fixed "nothing changed in the software": replaced stale `apps/api/public` with fresh web build; API serving new UI on :3000 | `apps/api/public/*` | — |
-| 2026-08-04 | Single-port model (:3000 only) + multi-workflow: workflow store, API routes, Workflows page, `build:web` script, OPERATIONS update | `engine/workflows.js`, `jobs.js`, `server.js`, `Workflows.jsx`, `api.js`, `package.json`, `docs/OPERATIONS.md` | **not yet committed** |
+| 2026-08-04 | Single-port model (:3000 only) + multi-workflow: workflow store, API routes, Workflows page, `build:web` script, OPERATIONS update | `engine/workflows.js`, `jobs.js`, `server.js`, `Workflows.jsx`, `api.js`, `package.json`, `docs/OPERATIONS.md` | `473cf3e` |
 | 2026-08-04 | BOM corruption (PowerShell `Set-Content -Encoding UTF8`) diagnosed + repaired; stale `running` jobs reset to failed | `output/jobs/*.json` (via Node) | — |
-| 2026-08-04 | Created this master tracker + README status link | `docs/STATUS.md`, `README.md` | — |
-| 2026-08-04 | **Watch mode done (1.3)**: `createWatchService` start/stop/close + `autoStart`; `POST /api/watch/start|stop` + `watch:state` SSE; wizard "Watch folder" input (Standby/Watching badge, start/stop, debounce) | `engine/watch.js`, `server.js`, `api.js`, `ImportWizard.jsx` | — |
-| 2026-08-04 | **Mapping validation + profiles done (1.4)**: `validateMapping` (ok/missing/duplicate-column/mismatch/duplicate-header + autoCreate), `ensureHeaders` auto-create threaded through draft/apply, `saveMappingProfile`/`getMappingProfile` (`output/mappings/`), `POST /api/excel/mapping/profile`, validation UI + save-profile in wizard | `excel/inspect.js`, `fill.js`, `engine/draft.js`, `config.js`, `index.js`, `server.js`, `api.js`, `ImportWizard.jsx` | — |
+| 2026-08-04 | Created this master tracker + README status link | `docs/STATUS.md`, `README.md` | `473cf3e` |
+| 2026-08-04 | **Watch mode done (1.3)**: `createWatchService` start/stop/close + `autoStart`; `POST /api/watch/start|stop` + `watch:state` SSE; wizard "Watch folder" input (Standby/Watching badge, start/stop, debounce) | `engine/watch.js`, `server.js`, `api.js`, `ImportWizard.jsx` | `473cf3e` |
+| 2026-08-04 | **Mapping validation + profiles done (1.4)**: `validateMapping` (ok/missing/duplicate-column/mismatch/duplicate-header + autoCreate), `ensureHeaders` auto-create threaded through draft/apply, `saveMappingProfile`/`getMappingProfile` (`output/mappings/`), `POST /api/excel/mapping/profile`, validation UI + save-profile in wizard | `excel/inspect.js`, `fill.js`, `engine/draft.js`, `config.js`, `index.js`, `server.js`, `api.js`, `ImportWizard.jsx` | `473cf3e` |
+| 2026-08-04 | **Docs-alignment pass done (1.9)**: VISION, ROADMAP, ARCHITECTURE_PLAN, DECISIONS (D18–D24), PLAN, ARCHITECTURE, STANDARD_JSON (no-op), DATA_MODEL, OPERATIONS, README aligned to the v0.4 workflow-engine reality | `docs/*.md`, `README.md` | (this commit) |
 
 ## 3. In progress (current)
 
-- **Commit the v0.4 wave** (multi-workflow + watch mode + mapping validation/profiles):
-  stage, commit, push to `origin main`.
-- **Then:** docs-alignment pass (`1.9`) — VISION, ROADMAP, ARCHITECTURE_PLAN,
-  DECISIONS D11–D19, PLAN note, ARCHITECTURE, STANDARD_JSON, DATA_MODEL,
-  OPERATIONS, README.
+- **Commit + push the docs-alignment wave** (1.9): stage, commit, push to `origin main`.
+- **Next:** Part 2 — Professional mode (v0.5).
 
 ## 4. Not started / next up (backlog order)
 
-1. Commit + push the v0.4 wave (see §3).
-2. Docs-alignment pass (1.9).
-3. Part 2 — Professional mode (v0.5).
-4. Part 3 — second workflow / plugin pair (v0.6).
-5. Part 4 — hardening & embedding (v0.7→1.0).
+1. Part 2 — Professional mode (v0.5): AI config, Excel template manager,
+   workflow builder, watch jobs as managed items, persisted history, log viewer,
+   plugin contracts solidified.
+2. Part 3 — second workflow / plugin pair (v0.6).
+3. Part 4 — hardening & embedding (v0.7→1.0).
 
 ## 5. Runtime & environment notes
 

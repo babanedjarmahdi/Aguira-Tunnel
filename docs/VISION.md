@@ -107,9 +107,13 @@ KMZ files ──► Extract ──► Standard JSON ──► AI enrich ──�
 - 146 source KMZ files → **147 unique properties**, 0 parse failures, 2 duplicates removed.
 - AI extraction of 18 structured fields from Arabic free text via Groq
   (provider-independent).
-- Live file watcher that re-syncs DB + Excel whenever a `.kmz` is added or removed.
+- **Safe loop:** every run is a **Job**; the workflow builds a **draft**, the UI
+  shows a preview, and only an explicit **Apply** writes Excel (copy-first).
+- **Watch mode:** server-side watcher with start/stop from the UI; every change
+  batch becomes a Job automatically.
 - Monorepo: `@terraflow/*` packages (shared, ai, excel, database, engine) +
-  `apps/api` (REST + SSE) + `apps/web` (frontend, in progress).
+  `apps/api` (REST + SSE, serves the web UI on one port :3000) +
+  `apps/web` (Basic-mode 6-step import wizard, jobs, workflows pages).
 
 **Stack:** Node.js 24 (ESM), `exceljs`, `fast-xml-parser`, `adm-zip`, `pg`,
 PostgreSQL 16 (Docker), Groq API (`llama-3.3-70b-versatile`), React + Vite.
@@ -126,11 +130,12 @@ compatible. The detailed execution plan lives in [ROADMAP.md](ROADMAP.md).
 - Engine orchestration with structured events — done.
 - REST API (`apps/api`) with SSE progress — done.
 
-### v0.4 — Workflow MVP: safe import loop 🔄 (in progress)
-- Workflow abstraction + universal **Job** record.
-- **Safe execution**: run → generate draft → preview → user review → apply.
+### v0.4 — Workflow MVP: safe import loop ✅
+- Workflow abstraction + universal **Job** record — done.
+- **Safe execution**: run → generate draft → preview → user review → apply — done.
 - Basic-mode guided flow: choose input (KMZ file / folder / watch) → choose Excel
-  → run → review draft → apply. Professional unlocks configuration.
+  → run → review draft → apply — done. Professional unlocks configuration.
+- Watch mode (start/stop, Watching… state), mapping validation + profiles — done.
 
 ### v0.5 — Professional mode & workflow building blocks ⏳
 - Externalized mapping configuration (destination "understanding").

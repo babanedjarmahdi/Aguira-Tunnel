@@ -49,12 +49,18 @@ warnings and AI uncertainties are shown before anything is written.
 
 - **Workflow engine** (`@terraflow/engine`): orchestrates `extract → ai → db →
   fill`, UI-agnostic, callable from CLI or API, emits structured events.
-- 147 unique properties from 146 source KMZ files, 0 parse failures.
+- KMZ input adapter: 147 unique properties from 146 source files, 0 parse
+  failures.
 - AI extracts structured fields from Arabic free text (type, status, location,
   price, owner, phone, notes…) via Groq — resume-safe, cached, throttled.
-- **REST API + SSE** on `http://localhost:3000`; **React + Vite web UI**
-  (dark, two-mode Basic/Professional) under construction in `apps/web`.
-- **Live watcher**: add or remove a `.kmz` and the DB + Excel re-sync.
+- **Workflows & Jobs**: saved workflow definitions and persisted Job history
+  (`output/jobs/`), multi-workflow support, safe execution loop.
+- **Destination understanding**: sheet/header detection, suggested mapping,
+  validation, auto-create missing columns, saved mapping profiles.
+- **REST API + SSE** and the **React + Vite web UI** served together on one port
+  `http://localhost:3000` (Basic-mode wizard + Professional panels in `apps/web`).
+- **Watch mode**: user-controlled start/stop of folder watching
+  (`/api/watch/start|stop`, SSE `watch:state`) — never auto-starts on boot.
 - Idempotent stages: re-runs are safe, the AI stage caches, the DB load upserts,
   the Excel fill is append-only.
 
@@ -89,7 +95,7 @@ npm run ai                 # + Groq AI -> output/json/properties_ai.json
 npm run loaddb             # -> PostgreSQL
 npm run fill               # -> output/excel/..._filled.xlsx (copy)
 npm run pipeline           # extract + ai + loaddb + fill, in one shot
-npm run watch              # watch source folder, auto re-sync on add/remove
+npm run watch              # CLI folder watcher (or use /api/watch/start|stop from the UI)
 npm run build:web          # build web UI + copy into apps/api/public
 npm run api                # everything on one port: web UI + REST API on http://localhost:3000
 npm run dev                # optional Vite hot-reload dev server (proxies /api to :3000)
@@ -108,9 +114,20 @@ workbook (backs it up first) — use it deliberately, prefer `fill` otherwise.
 | POST | `/api/pipeline` | Trigger `extract → ai → db → fill` (202; 409 if running) |
 | GET | `/api/pipeline/events` | SSE: replayed history + live progress events |
 | GET | `/api/properties` | Property catalog from PostgreSQL |
+| POST | `/api/uploads` | Stage an input file or folder |
+| POST | `/api/excel/inspect` · `/api/excel/mapping` | Understand a workbook; suggest + validate mapping |
+| POST | `/api/excel/mapping/profile` | Save / reload a mapping profile |
+| POST | `/api/jobs` · `GET /api/jobs` | Create / list Jobs (persisted history) |
+| GET | `/api/jobs/:id` | Job record + status |
+| POST | `/api/jobs/:id/run` | Run a Job's workflow |
+| POST | `/api/jobs/:id/draft` · `GET /api/jobs/:id/draft` | Generate / preview the draft |
+| POST | `/api/jobs/:id/apply` | Apply the reviewed draft (safe execution) |
+| GET | `/api/jobs/:id/download` | Resulting destination file |
+| GET/POST/PUT/DELETE | `/api/workflows...` | Saved workflow definitions + run |
+| GET | `/api/watch` | Watch status |
+| POST | `/api/watch/start` · `/api/watch/stop` | Start / stop folder watching |
 
-The v0.4 job-based API (uploads, excel inspect/mapping, jobs, draft, apply,
-watch) is being built on the same engine — see
+The full job-based surface and its `/api/v1/` target shape are described in
 [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) §11.
 
 ## Repo layout
@@ -140,6 +157,7 @@ output/              # generated JSON + Excel (git-ignored)
 | [docs/STANDARD_JSON.md](docs/STANDARD_JSON.md) | Versioned Standard JSON contract |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | DB schema, ID scheme, price rules, AI fields, Excel columns, Job model |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Setup, running, watcher, API/web, troubleshooting |
+| [docs/STATUS.md](docs/STATUS.md) | **Live task tracker** — what's done / not done, step-by-step |
 
 ## Notes
 

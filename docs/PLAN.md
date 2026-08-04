@@ -5,8 +5,8 @@
 > the TerraFlow Engine (a **workflow engine**, not an Excel tool — Excel is one
 > output adapter). The current direction lives in
 > [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) ·
-> [ROADMAP.md](ROADMAP.md). This file is kept as a record of how Phase 1 was
-> executed.
+> [ROADMAP.md](ROADMAP.md) · [STATUS.md](STATUS.md) (the live task tracker).
+> This file is kept as a record of how Phase 1 was executed.
 
 The original execution plan for the first TerraFlow module. Every item is now
 **built and verified**. Status maps each plan item to the implementing file.

@@ -43,9 +43,9 @@ Table **`properties`** — one row per property.
 - `INDEX (name)`, `INDEX (lat, lon)` — lookup and geo.
 - `pgcrypto` extension for `gen_random_uuid()`.
 
-> The `jobs` table (every run's history — §8) and reserved `workspace_id` /
-> `workflow_id` columns arrive with the v0.4 workflow MVP. See
-> [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §10.
+> The Job record (every run's history — §8) is persisted to `output/jobs/*.json`
+> today; a PostgreSQL `jobs` table plus reserved `workspace_id` columns arrive
+> with the v0.4→v0.7 roadmap. See [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §10.
 
 ---
 
@@ -215,7 +215,8 @@ future TerraFlow products (CRM, Cloud Dashboard). Persisted to
 | Field | Type | Notes |
 |---|---|---|
 | `id` | int / string | Stable, human-readable (`Job #27`) |
-| `workflowType` | string | e.g. `kmz-ai-excel` |
+| `workflowType` | string | e.g. `basic`, `watch-sync`, `legacy` |
+| `workflowId` | int / null | Parent workflow (multi-workflow, v0.4) |
 | `status` | string | `queued` · `running` · `completed` · `failed` · `canceled` |
 | `startedAt` / `finishedAt` | ISO string | run window |
 | `durationMs` | int | elapsed |
@@ -223,9 +224,10 @@ future TerraFlow products (CRM, Cloud Dashboard). Persisted to
 | `recordsCreated` / `recordsUpdated` / `recordsSkipped` | int | outcome counts |
 | `warnings` / `errors` | int | counts from the run |
 | `log` | array | structured execution events |
+| `draft` / `output` | object | built draft meta / apply result (path, rows, range) |
 
-Reserved for the workspace milestone (v0.7): `workspaceId`, `workflowId`,
-`watchId`.
+Reserved for the workspace milestone (v0.7): `workspaceId`, `watchId`. (`workflowId`
+is live since v0.4.)
 
 ### Safe execution states (draft → preview → apply)
 
@@ -235,8 +237,8 @@ A Job moves through the safety model in [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN
 run → generate draft → preview changes → user review → apply changes → update destination
 ```
 
-Drafts (the computed, not-yet-applied writes) live under `output/drafts/` until
-the user applies or discards them. The destination is **never** modified before
+Drafts (the computed, not-yet-applied writes) live under `output/jobs/job-<id>/draft.json`
+until the user applies or discards them. The destination is **never** modified before
 the apply step (D13).
 
 ---

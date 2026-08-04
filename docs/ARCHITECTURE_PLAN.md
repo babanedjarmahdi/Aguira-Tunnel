@@ -147,8 +147,9 @@ CRM_PRO/
       index.js           #   createProvider() factory
     excel/               # Excel OUTPUT PLUGIN (one of several)
       mapping.js         #   field → column mapping
+      inspect.js         #   sheet/header detection + mapping validation + mapping profiles (v0.4)
+      rows.js            #   read/write rows against a mapped sheet                (v0.4)
       fill.js            #   copy + in-place fill (D7 clone promotion)
-      inspect.js         #   sheet/header/sample detection  (v0.4)
       price.js           #   price/location display formatters
     database/            # Database OUTPUT PLUGIN
       client.js          #   pg pool wrapper
@@ -160,8 +161,11 @@ CRM_PRO/
       stages.js          #   stage definitions (extract/ai/db/fill/...)
       orchestrator.js    #   runPipeline({ job })  (v0.4: input-driven)
       jobs.js            #   Job record + persistence            (v0.4)
+      workflows.js       #   workflow definitions + persistence  (v0.4)
       draft.js           #   draft / preview / apply state machine (v0.4)
-      watch.js           #   WatchService: folder/file watch     (v0.4)
+      watch.js           #   WatchService: start/stop/status     (v0.4)
+      extractor.js       #   per-input processing orchestration
+      kmz.js             #   KMZ input adapter (unzip → KML → parse → dedupe)
       plugins.js         #   plugin registry + contracts         (v0.7+)
       workspaces.js      #   workspace context / persistence     (v0.7+)
       cli.js             #   CLI subcommands
@@ -170,7 +174,7 @@ CRM_PRO/
   apps/
     api/                 # Express REST API + SSE (thin adapter)
       src/server.js
-      public/            # simple served dashboard
+      public/            # built web app served from :3000 (copy of apps/web/dist)
     web/                 # React + Vite frontend (thin adapter)
       src/components/
       src/pages/
@@ -178,9 +182,11 @@ CRM_PRO/
   docs/                  # this documentation suite
   output/                # generated artifacts (git-ignored)
     json/                #   canonical records
-    excel/               #   filled workbook copies + drafts
+    excel/               #   filled workbook copies (job-<id>_filled.xlsx)
     uploads/<jobId>/     #   staged input files (v0.4)
-    jobs/                #   persisted Job records (v0.4)
+    jobs/                #   persisted Job records + workflows (v0.4)
+    jobs/job-<id>/       #   per-job draft.json (v0.4)
+    mappings/            #   saved mapping profiles (v0.4)
     workspaces/          #   workspace persistence (v0.7+)
     *.log                #   runtime logs
 ```
@@ -486,6 +492,18 @@ GET    /api/v1/watch                   # list watch jobs + status
 GET    /api/v1/pipeline/events         # SSE: jobs + watch events
 ```
 
+**Live today (v0.4, unversioned under `/api`):** `POST /api/uploads`,
+`POST /api/excel/inspect` · `POST /api/excel/mapping` ·
+`POST /api/excel/mapping/profile`, the job routes `POST /api/jobs`,
+`GET /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
+`POST /api/jobs/:id/draft`, `GET /api/jobs/:id/draft`,
+`POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`, workflow CRUD under
+`/api/workflows`, watch as `POST /api/watch/start` · `POST /api/watch/stop` ·
+`GET /api/watch`, and SSE on `/api/pipeline/events` / `/api/jobs/events`
+(`job:*` plus `watch:change`, `watch:log`, `watch:state`). The `/api/v1/`
+list above is the target contract; the current server is its working
+implementation, and the versioned prefix is a v1.0 task.
+
 - **Workspace-aware:** every route accepts an (optional) workspace context in
   v0.4; v0.7 adds explicit workspace selection. Validation happens at the
   boundary using the canonical record contract schema.
@@ -566,8 +584,8 @@ packages/ai/local.js        # later (same interface)
 | Version | Scope | Entry criteria |
 |---|---|---|
 | **0.1–0.3** (✅) | Monorepo, engine orchestration, REST API | Shipped and verified |
-| **0.4** (🔄) | Workflow MVP: Job model, draft/preview/apply, input sources (file/folder/watch), destination understanding, Basic-mode 6 steps, job-based API; plugin-shaped adapter contracts; workspace-aware schema | API v0.3 validated; design review per part |
-| **0.5** (⏳) | Professional mode, AI configuration, Excel template manager, workflow builder, watch jobs, persisted history, log viewer; plugin contracts solidified | v0.4 reviewed in real use |
+| **0.4** (✅) | Workflow MVP: Job model, draft/preview/apply, input sources (file/folder/watch), destination understanding, Basic-mode 6 steps, job-based API, multi-workflow, single-port serving; plugin-shaped adapter contracts; workspace-aware schema | Shipped and verified (see ROADMAP.md) |
+| **0.5** (⏳) | Professional mode, AI configuration, Excel template manager, workflow builder, log viewer; plugin contracts solidified | v0.4 reviewed in real use |
 | **0.6** (⏳) | Second workflow/adapter shipped as a **plugin pair** (proves the plugin mechanism end-to-end) + ecosystem apps | v0.5 stable |
 | **0.7 → 1.0** (⏳) | Embeddable engine contract, versioned API + docs, **workspace persistence + backup/restore**, **plugin registry + manifest/discovery**, local-first scaffold, migrations, Docker Compose, GA | v0.6 validated |
 
@@ -576,7 +594,7 @@ packages/ai/local.js        # later (same interface)
 ## 16. MVP Definition
 
 The MVP is **one polished workflow** — KMZ → AI → Excel — shipped
-production-ready:
+production-ready. **That loop is live as of v0.4**:
 
 - Basic mode, 6 steps: choose input (file/folder/watch) → choose Excel → run →
   progress → review draft (in-app) → apply.
@@ -584,7 +602,8 @@ production-ready:
   validation, auto-create missing columns.
 - Universal Job records with persisted history.
 - Safe execution: nothing touches the user's workbook before review.
-- Live progress via SSE; file/folder watch automation.
+- Live progress via SSE; file/folder watch automation (user-controlled
+  start/stop).
 
 **Non-goals for the MVP:** real auth, multi-user, cloud sync, second
 workflows/adapters, CRM modules, billing, the plugin registry UI, and workspace

@@ -81,23 +81,21 @@ previous stage's output), which is what `pipeline` enforces.
 
 ---
 
-## 4. The live watcher (recommended for day-to-day)
+## 4. Watch mode (server-side, user-controlled)
 
-Watches the Google Earth KMZ folder. Any `.kmz` **added** or **removed** triggers
-a full re-sync (extract → AI → DB → Excel) after a 1.5 s debounce.
+Watch mode is a **managed, server-side service**: start/stop it from the web UI
+(Import wizard → *Watch folder*) or via the API. While watching, any `.kmz`
+**added** or **removed** in `SOURCE_KMZ_DIR` queues a `watch-sync` Job
+(extract → AI → database) after a 1.5 s debounce.
 
 ```powershell
-npm.cmd run watch
+npm.cmd run watch        # CLI watcher (logs to output/watcher.log, Ctrl+C to stop)
 ```
 
-- Runs once at startup to bring everything in sync.
-- Logs to `output/watcher.log` and the console.
-- Skips a sync if one is already running.
-- **Stop it with Ctrl+C** before doing a manual pipeline run to avoid conflicts.
-
-> v0.4 turns this into a server-side **WatchService** (folder + single-file,
-> start/stop via API, SSE events, Jobs per run) — see
-> [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §9 and §11.
+- API: `GET /api/watch` (status) · `POST /api/watch/start` · `POST /api/watch/stop`.
+- SSE: `watch:change`, `watch:log`, `watch:state` events.
+- Each change batch becomes a Job in `output/jobs/` — visible on the Jobs page.
+- Watch no longer auto-starts on server boot; the UI controls it.
 
 ---
 
@@ -120,11 +118,12 @@ npm.cmd run dev        # Vite dev server on http://localhost:5173 (API must be u
 Endpoints today:
 
 - Core: `GET /api/health | /api/config | /api/status | /api/properties`
-- Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`
+- Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`,
+  `POST /api/excel/mapping/profile` (save mapping profile)
 - Jobs: `GET|POST /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
   `POST|GET /api/jobs/:id/draft`, `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`
 - Workflows: `GET|POST /api/workflows`, `GET|PUT|DELETE /api/workflows/:id`, `POST /api/workflows/:id/run`
-- Watch: `GET /api/watch`
+- Watch: `GET /api/watch`, `POST /api/watch/start`, `POST /api/watch/stop`
 - Events: `GET /api/pipeline/events | /api/jobs/events` (SSE, `?jobId=` filter)
 
 ---
@@ -137,9 +136,12 @@ Endpoints today:
 | `output/json/properties_ai.json` | Same, with `ai` enrichment (147) |
 | `output/json/dedupe_report.txt` | What was removed as duplicate and why |
 | `output/excel/CRM_GPT_Immobilier_Employees_V8_10_2_2_filled.xlsx` | Filled workbook copy |
-| `output/drafts/` | Not-yet-applied draft workbooks (v0.4 safe execution) |
-| `output/jobs/` | Persisted Job records (v0.4 run history) |
-| `output/uploads/<jobId>/` | Staged input files (v0.4) |
+| `output/excel/job-<id>_filled.xlsx` | Per-job applied workbook (apply step) |
+| `output/jobs/jobs.json` | Persisted Job records (run history) |
+| `output/jobs/workflows.json` | Persisted workflow definitions |
+| `output/jobs/job-<id>/` | Per-job artifacts: `properties_ai.json`, `draft.json` |
+| `output/mappings/` | Saved mapping profiles per template |
+| `output/uploads/<timestamp>_<name>` | Staged input KMZ files |
 | `output/watcher.log` | Watcher activity |
 | `output/*.log` | Error logs (`db_load_error.log`, `excel_fill_error.log`) |
 | `C:\Users\USER\Desktop\TerraFlow_Filled.xlsx` | Convenience copy of the filled workbook |
@@ -158,7 +160,7 @@ docker compose up -d
 
 ### Groq API 429 (rate limit)
 
-`stage2_ai.js` handles this automatically: exponential backoff up to 60 s and a
+The AI stage handles this automatically: exponential backoff up to 60 s and a
 throttle between calls. If a run ends with failures, **just re-run the script** —
 it resumes from cache and only re-processes failed/new rows.
 
