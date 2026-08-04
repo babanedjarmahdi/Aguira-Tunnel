@@ -24,14 +24,14 @@ export function readJobRecords(jobId, { withAi = true } = {}) {
 }
 
 // Build a reviewable draft (computed Excel rows) without writing anything.
-export async function buildDraft(jobId, { mode = 'copy', templatePath = null } = {}) {
+export async function buildDraft(jobId, { mode = 'copy', templatePath = null, autoCreate = null } = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`Job ${jobId} not found`);
   const records = readJobRecords(jobId);
   const template = templatePath || job.destination?.templatePath || process.env.EXCEL_TEMPLATE;
   if (!template) throw new Error('No Excel template configured');
 
-  const preview = await previewRows({ templatePath: template, records, mode });
+  const preview = await previewRows({ templatePath: template, records, mode, autoCreate });
   const draft = {
     jobId,
     mode,
@@ -39,6 +39,7 @@ export async function buildDraft(jobId, { mode = 'copy', templatePath = null } =
     generatedAt: new Date().toISOString(),
     startRow: preview.startRow,
     lastRow: preview.lastRow,
+    autoCreate: preview.autoCreate,
     rows: preview.rows,
   };
 
@@ -53,6 +54,7 @@ export async function buildDraft(jobId, { mode = 'copy', templatePath = null } =
       rows: draft.rows.length,
       startRow: draft.startRow,
       lastRow: draft.lastRow,
+      autoCreate: draft.autoCreate,
       path: jobDraftPath(jobId),
     },
   });
@@ -67,7 +69,7 @@ export function getDraft(jobId) {
 }
 
 // Apply a reviewed draft: write rows into the Excel workbook (copy or original).
-export async function applyDraft(jobId, { mode = null, templatePath = null, outputName = null } = {}) {
+export async function applyDraft(jobId, { mode = null, templatePath = null, outputName = null, autoCreate = null } = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`Job ${jobId} not found`);
   const records = readJobRecords(jobId);
@@ -75,14 +77,15 @@ export async function applyDraft(jobId, { mode = null, templatePath = null, outp
   const mode2 = mode || job.draft?.mode || job.destination?.mode || 'copy';
   const template = templatePath || job.draft?.templatePath || job.destination?.templatePath || process.env.EXCEL_TEMPLATE;
   if (!template) throw new Error('No Excel template configured');
+  const autoCreate2 = autoCreate != null ? autoCreate : job.draft?.autoCreate;
 
   let result;
   if (mode2 === 'original') {
-    result = await fillInPlace({ originalPath: template, records, backupDir: BACKUP_DIR });
+    result = await fillInPlace({ originalPath: template, records, backupDir: BACKUP_DIR, autoCreate: autoCreate2 });
   } else {
     const outputPath = job.destination?.outputPath
       || path.join(EXCEL_OUT_DIR, outputName || `job-${jobId}_filled.xlsx`);
-    result = await fillCopy({ templatePath: template, outputPath, records });
+    result = await fillCopy({ templatePath: template, outputPath, records, autoCreate: autoCreate2 });
   }
 
   updateJob(jobId, { status: 'completed', output: result, appliedAt: new Date().toISOString() });

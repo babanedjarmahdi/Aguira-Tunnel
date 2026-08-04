@@ -1,12 +1,13 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   UploadCloud, Check, Sparkles, FileSpreadsheet, RefreshCcw, Play,
   ChevronLeft, ChevronRight, FolderOpen, X, CheckCircle2, Zap, Database,
-  ClipboardList, Download, AlertTriangle, Clock,
+  ClipboardList, Download, AlertTriangle, Clock, Radar, Square, ExternalLink, Bookmark,
 } from 'lucide-react';
 import {
-  uploadKmz, inspectExcel, buildExcelMapping, createJob, getJob, buildDraft, applyDraft,
-  useJobEvents, getConfig,
+  uploadKmz, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft,
+  useJobEvents, getConfig, usePoll, getWatch, watchStart, watchStop,
 } from '../api';
 import { Button, Badge, Progress, Dot, useToast, Card, Spinner, Segmented, Empty } from '../components/ui';
 import PipelineVisual, { JOB_STAGES } from '../components/PipelineVisual';
@@ -15,6 +16,7 @@ const STEP_LABELS = ['Input', 'Excel destination', 'Run', 'Progress', 'Review dr
 
 export default function ImportWizard() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [pickerMode, setPickerMode] = useState('file');
   const [files, setFiles] = useState([]);
@@ -26,6 +28,7 @@ export default function ImportWizard() {
   const [inspect, setInspect] = useState(null);
   const [mapping, setMapping] = useState(null);
   const [mappingLoading, setMappingLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [destMode, setDestMode] = useState('copy');
 
   const [jobId, setJobId] = useState(null);
@@ -39,6 +42,9 @@ export default function ImportWizard() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [applyResult, setApplyResult] = useState(null);
   const [applying, setApplying] = useState(false);
+
+  const { data: watch } = usePoll(getWatch, 2000);
+  const [watchToggling, setWatchToggling] = useState(false);
 
   // ---- Step 1: Excel destination (inspect + mapping) ---------------------
   useEffect(() => {
@@ -135,10 +141,47 @@ export default function ImportWizard() {
     }
   };
 
+  const doWatchStart = async () => {
+    setWatchToggling(true);
+    try {
+      await watchStart();
+      toast('Watch started — new .kmz files will auto-sync');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setWatchToggling(false);
+    }
+  };
+
+  const doWatchStop = async () => {
+    setWatchToggling(true);
+    try {
+      await watchStop();
+      toast('Watch stopped');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setWatchToggling(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      await saveExcelMapping({ templatePath });
+      setMapping((m) => ({ ...m, profile: { templatePath, savedAt: new Date().toISOString() } }));
+      toast('Mapping profile saved for this template');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const reviewDraft = async () => {
     setDraftLoading(true);
     try {
-      const d = await buildDraft(jobId, { mode: destMode });
+      const d = await buildDraft(jobId, { mode: destMode, autoCreate: mapping?.validation?.autoCreate || [] });
       setDraft(d);
       setStep(4);
     } catch (e) {
@@ -151,7 +194,7 @@ export default function ImportWizard() {
   const doApply = async () => {
     setApplying(true);
     try {
-      const r = await applyDraft(jobId, { mode: destMode });
+      const r = await applyDraft(jobId, { mode: destMode, autoCreate: mapping?.validation?.autoCreate || [] });
       setApplyResult(r);
       setStep(5);
     } catch (e) {
@@ -202,8 +245,45 @@ export default function ImportWizard() {
             options={[
               { value: 'file', label: 'Single file' },
               { value: 'folder', label: 'Whole folder' },
+              { value: 'watch', label: 'Watch folder' },
             ]}
           />
+          {pickerMode === 'watch' ? (
+            <div className="mt-16">
+              <div className="grid cols-2">
+                <Card pad>
+                  <div className="flex gap-8 mb-12">
+                    <Badge tone={watch?.watching ? 'ok' : watch?.enabled ? 'info' : 'warn'}>
+                      <Dot tone={watch?.watching ? 'ok' : watch?.enabled ? 'info' : 'err'} />
+                      {watch?.watching ? 'Watching…' : watch?.enabled ? 'Standby' : 'Unavailable'}
+                    </Badge>
+                    <Badge tone="info">debounce {watch?.debounceMs ?? 1500} ms</Badge>
+                  </div>
+                  <p className="hint">
+                    Folder: <span className="mono" style={{ color: 'var(--text)' }}>{watch?.watchDir || '—'}</span>
+                  </p>
+                  <p className="hint mt-8">
+                    Every add/modify/remove of a <span className="mono">.kmz</span> file queues an automatic
+                    watch-sync job (extract → AI → database) after the debounce window. Jobs appear in the Jobs page.
+                  </p>
+                  <div className="flex gap-8 mt-16">
+                    {watch?.watching
+                      ? <Button variant="primary" icon={Square} onClick={doWatchStop} loading={watchToggling}>Stop watching</Button>
+                      : <Button variant="primary" icon={Radar} onClick={doWatchStart} disabled={!watch?.enabled} loading={watchToggling}>Start watching</Button>}
+                    <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/jobs')}>Open Jobs</Button>
+                  </div>
+                </Card>
+                <Card pad title="When to use watch mode">
+                  <div className="flex-col gap-4" style={{ paddingLeft: 18 }}>
+                    <li className="muted text-sm">You keep adding .kmz files to the same folder over time.</li>
+                    <li className="muted text-sm">You want the destination re-synced automatically, hands-off.</li>
+                    <li className="muted text-sm">One-shot imports still use Single file / Whole folder above.</li>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          ) : (
+          <>
           <input ref={fileInputRef} type="file" accept=".kmz,.kml" hidden
             onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
           <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple hidden
@@ -236,10 +316,20 @@ export default function ImportWizard() {
               </div>
             </div>
           )}
+          </>
+          )}
 
           <div className="flex between mt-16">
-            <span className="hint">KMZ is decompressed locally — nothing leaves your machine until you run the pipeline.</span>
-            <Button variant="primary" icon={ChevronRight} onClick={() => files.length ? setStep(1) : toast('Upload at least one KMZ file first', 'err')}>Continue</Button>
+            <span className="hint">
+              {pickerMode === 'watch'
+                ? 'Watch runs in the background — no manual upload needed.'
+                : 'KMZ is decompressed locally — nothing leaves your machine until you run the pipeline.'}
+            </span>
+            {pickerMode === 'watch' ? (
+              <Button variant="primary" icon={ChevronRight} onClick={() => navigate('/jobs')}>Open Jobs</Button>
+            ) : (
+              <Button variant="primary" icon={ChevronRight} onClick={() => files.length ? setStep(1) : toast('Upload at least one KMZ file first', 'err')}>Continue</Button>
+            )}
           </div>
         </Card>
       )}
@@ -285,21 +375,56 @@ export default function ImportWizard() {
 
           <Card className="pad" title="Column mapping" sub="AI/engine field → Excel column (auto-detected from the template)">
             {mapping ? (
-              <div className="table-wrap">
-                <table className="tbl">
-                  <thead><tr><th>Field</th><th>Col</th><th>Excel header</th><th>Confidence</th></tr></thead>
-                  <tbody>
-                    {mapping.mapping.map((m) => (
-                      <tr key={m.aiField}>
-                        <td className="mono" style={{ fontSize: 12 }}>{m.aiField}</td>
-                        <td className="mono" style={{ color: 'var(--accent)' }}>{m.excelColumn}</td>
-                        <td className="muted">{m.header}</td>
-                        <td><div className="flex gap-8"><Progress value={m.confidence} thin /><span className="mono muted">{m.confidence}%</span></div></td>
-                      </tr>
+              <>
+                <div className="flex between mb-12">
+                  <div className="flex gap-8">
+                    {mapping.validation?.valid ? (
+                      <Badge tone="ok"><Dot tone="ok" /> Mapping valid</Badge>
+                    ) : (
+                      <Badge tone="err"><Dot tone="err" /> {mapping.validation?.issues?.length || 0} issue{(mapping.validation?.issues?.length || 0) > 1 ? 's' : ''}</Badge>
+                    )}
+                    {mapping.profile && <Badge tone="info"><Dot tone="info" /> Profile saved</Badge>}
+                  </div>
+                  <Button variant="ghost" icon={Bookmark} onClick={saveProfile} disabled={mapping.validation?.valid === false} loading={profileSaving}>
+                    {mapping.profile ? 'Re-save profile' : 'Save profile'}
+                  </Button>
+                </div>
+                {!mapping.validation?.valid && (
+                  <div className="card mb-12" style={{ background: 'rgba(248,113,113,0.06)', borderColor: 'rgba(248,113,113,0.25)', padding: 10 }}>
+                    {mapping.validation.issues.map((iss, i) => (
+                      <div key={i} className="muted text-sm" style={{ color: 'var(--error)' }}>• {iss.message}</div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                )}
+                {!!mapping.validation?.autoCreate?.length && (
+                  <div className="card mb-12" style={{ background: 'rgba(251,191,36,0.06)', borderColor: 'rgba(251,191,36,0.3)', padding: 10 }}>
+                    <div className="muted text-sm" style={{ color: 'var(--warning)' }}>
+                      • {mapping.validation.autoCreate.length} missing column{mapping.validation.autoCreate.length > 1 ? 's' : ''} will be created automatically on apply:
+                      {mapping.validation.autoCreate.map((a) => ` ${a.column} (${a.header})`).join(',')}
+                    </div>
+                  </div>
+                )}
+                <div className="table-wrap">
+                  <table className="tbl">
+                    <thead><tr><th>Field</th><th>Col</th><th>Excel header</th><th>Confidence</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {mapping.mapping.map((m) => (
+                        <tr key={m.aiField}>
+                          <td className="mono" style={{ fontSize: 12 }}>{m.aiField}</td>
+                          <td className="mono" style={{ color: 'var(--accent)' }}>{m.excelColumn}</td>
+                          <td className="muted">{m.header}</td>
+                          <td><div className="flex gap-8"><Progress value={m.confidence} thin /><span className="mono muted">{m.confidence}%</span></div></td>
+                          <td>
+                            <Badge tone={m.status === 'ok' ? 'ok' : 'warn'}>
+                              <Dot tone={m.status === 'ok' ? 'ok' : 'warn'} /> {m.status || '—'}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             ) : (
               <Empty icon={FileSpreadsheet} title="Loading mapping…" text="Reading the workbook header row." />
             )}

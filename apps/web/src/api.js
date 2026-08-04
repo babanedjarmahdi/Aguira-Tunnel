@@ -37,6 +37,9 @@ export const inspectExcel = (body = {}) => api('/api/excel/inspect', {
 export const buildExcelMapping = (body = {}) => api('/api/excel/mapping', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
+export const saveExcelMapping = (body = {}) => api('/api/excel/mapping/profile', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
 
 // ---- Jobs -----------------------------------------------------------------
 export const createJob = (body) => api('/api/jobs', {
@@ -55,6 +58,21 @@ export const applyDraft = (id, body = {}) => api(`/api/jobs/${id}/apply`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 export const getWatch = () => api('/api/watch');
+export const watchStart = () => api('/api/watch/start', { method: 'POST' });
+export const watchStop = () => api('/api/watch/stop', { method: 'POST' });
+
+// ---- Workflows ------------------------------------------------------------
+export const getWorkflows = () => api('/api/workflows');
+export const createWorkflow = (body) => api('/api/workflows', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const updateWorkflow = (id, body) => api(`/api/workflows/${id}`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const deleteWorkflow = (id) => api(`/api/workflows/${id}`, { method: 'DELETE' });
+export const runWorkflow = (id, body = {}) => api(`/api/workflows/${id}/run`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
 
 export async function startPipeline(stages) {
   const res = await fetch('/api/pipeline', {

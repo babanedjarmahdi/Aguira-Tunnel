@@ -14,6 +14,7 @@ export const BACKUP_DIR = path.join(ROOT, 'output', 'backup');
 export const JOBS_DIR = path.join(ROOT, 'output', 'jobs');
 export const DRAFTS_DIR = path.join(ROOT, 'output', 'drafts');
 export const UPLOADS_DIR = path.join(ROOT, 'output', 'uploads');
+export const MAPPINGS_DIR = path.join(ROOT, 'output', 'mappings');
 
 // Env-configurable paths. Defaults replicate the original scripts.
 export function loadConfig(env = process.env) {

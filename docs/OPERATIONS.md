@@ -103,17 +103,29 @@ npm.cmd run watch
 
 ## 5. API and web UI
 
+The web app is built and served **by the API itself on one port (3000)** — no
+separate dev server needed.
+
 ```powershell
-npm.cmd run api    # REST API + SSE on http://localhost:3000 (needs Postgres up)
-npm.cmd run dev    # Vite dev server for the web app on http://localhost:5173
-npm.cmd run build  # production build of the web app
-npm.cmd run preview
+npm.cmd run build:web  # build web + copy into apps/api/public (do after web changes)
+npm.cmd run api        # REST API + web UI + SSE on http://localhost:3000 (needs Postgres up)
 ```
 
-Endpoints today: `GET /api/health | /api/config | /api/status | /api/properties`,
-`GET /api/pipeline/events` (SSE), `POST /api/pipeline`. The v0.4 job-based API
-(uploads, excel inspect/mapping, jobs, draft, apply, watch) is being built on
-top of the same engine.
+Optional dev mode (hot reload, proxies `/api` to :3000):
+
+```powershell
+npm.cmd run dev        # Vite dev server on http://localhost:5173 (API must be up)
+```
+
+Endpoints today:
+
+- Core: `GET /api/health | /api/config | /api/status | /api/properties`
+- Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`
+- Jobs: `GET|POST /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
+  `POST|GET /api/jobs/:id/draft`, `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`
+- Workflows: `GET|POST /api/workflows`, `GET|PUT|DELETE /api/workflows/:id`, `POST /api/workflows/:id/run`
+- Watch: `GET /api/watch`
+- Events: `GET /api/pipeline/events | /api/jobs/events` (SSE, `?jobId=` filter)
 
 ---
 

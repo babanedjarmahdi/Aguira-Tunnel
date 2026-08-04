@@ -16,8 +16,9 @@ engine is destination-agnostic.
   **API → Transformation → Database** — new definitions, not new products.
 
 See [docs/VISION.md](docs/VISION.md) for the product vision,
-[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) for the blueprint, and
-[docs/ROADMAP.md](docs/ROADMAP.md) for the versioned execution plan.
+[docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md) for the blueprint,
+[docs/ROADMAP.md](docs/ROADMAP.md) for the versioned execution plan, and
+[docs/STATUS.md](docs/STATUS.md) for the live task tracker (what's done / not done).
 
 ## Architecture at a glance
 
@@ -89,8 +90,9 @@ npm run loaddb             # -> PostgreSQL
 npm run fill               # -> output/excel/..._filled.xlsx (copy)
 npm run pipeline           # extract + ai + loaddb + fill, in one shot
 npm run watch              # watch source folder, auto re-sync on add/remove
-npm run api                # REST API on http://localhost:3000
-npm run dev                # web UI dev server on http://localhost:5173
+npm run build:web          # build web UI + copy into apps/api/public
+npm run api                # everything on one port: web UI + REST API on http://localhost:3000
+npm run dev                # optional Vite hot-reload dev server (proxies /api to :3000)
 ```
 
 `fill:original` writes as-written prices back into the customer's original

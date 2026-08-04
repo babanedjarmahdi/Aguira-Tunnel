@@ -6,9 +6,10 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import {
   runPipeline, createEmitter, loadConfig, createJob, getJob, listJobs, updateJob, pushJobLog,
-  buildDraft, getDraft, applyDraft, createWatchService, JOBS_DIR, UPLOADS_DIR,
+  buildDraft, getDraft, applyDraft, createWatchService, JOBS_DIR, UPLOADS_DIR, MAPPINGS_DIR,
+  createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkflow, markWorkflowRun,
 } from '@terraflow/engine';
-import { inspectExcel, buildMapping } from '@terraflow/excel';
+import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
 import { createDb } from '@terraflow/database';
 
 dotenv.config();
@@ -74,6 +75,7 @@ class JobService {
           status: 'completed', currentStage: null, finishedAt: new Date().toISOString(),
           durationMs: Date.now() - t0, summary,
         });
+        if (job.workflowId) markWorkflowRun(job.workflowId, job.id, 'completed');
         this.broadcast('job:end', { jobId: job.id, summary });
       })
       .catch((err) => {
@@ -84,6 +86,7 @@ class JobService {
           status: 'failed', currentStage: null, finishedAt: new Date().toISOString(),
           durationMs: Date.now() - t0, error: msg,
         });
+        if (job.workflowId) markWorkflowRun(job.workflowId, job.id, 'failed');
         this.broadcast('job:error', { jobId: job.id, error: msg });
       });
     return true;
@@ -194,7 +197,21 @@ app.post('/api/excel/mapping', async (req, res) => {
   const templatePath = req.body?.templatePath || process.env.EXCEL_TEMPLATE;
   if (!templatePath) return res.status(400).json({ error: 'No template configured (EXCEL_TEMPLATE)' });
   try {
-    res.json(await buildMapping({ templatePath }));
+    res.json(await buildMapping({ templatePath, profilesDir: MAPPINGS_DIR }));
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+// Save the (validated) mapping as the template's profile for reuse.
+app.post('/api/excel/mapping/profile', async (req, res) => {
+  const templatePath = req.body?.templatePath || process.env.EXCEL_TEMPLATE;
+  if (!templatePath) return res.status(400).json({ error: 'No template configured (EXCEL_TEMPLATE)' });
+  try {
+    const { mapping, sheet } = await buildMapping({ templatePath, profilesDir: MAPPINGS_DIR });
+    const profile = saveMappingProfile({ templatePath, mapping, sheet, profilesDir: MAPPINGS_DIR });
+    service.broadcast('mapping:saved', { templatePath, columns: mapping.length });
+    res.status(201).json(profile);
   } catch (e) {
     res.status(400).json({ error: String(e.message || e) });
   }
@@ -206,6 +223,7 @@ app.post('/api/jobs', (req, res) => {
   const steps = Array.isArray(body.steps) && body.steps.length ? body.steps : null;
   const job = createJob({
     workflowType: body.workflowType || 'basic',
+    workflowId: body.workflowId || null,
     steps,
     input: {
       files: Array.isArray(body.input?.files) ? body.input.files : undefined,
@@ -246,7 +264,11 @@ app.post('/api/jobs/:id/draft', async (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: `Job ${req.params.id} not found` });
   try {
-    const draft = await buildDraft(job.id, { mode: req.body?.mode || 'copy', templatePath: req.body?.templatePath });
+    const draft = await buildDraft(job.id, {
+      mode: req.body?.mode || 'copy',
+      templatePath: req.body?.templatePath,
+      autoCreate: req.body?.autoCreate,
+    });
     service.broadcast('draft:ready', { jobId: job.id, rows: draft.rows.length, startRow: draft.startRow });
     res.json(draft);
   } catch (e) {
@@ -270,6 +292,7 @@ app.post('/api/jobs/:id/apply', async (req, res) => {
       mode: req.body?.mode || null,
       templatePath: req.body?.templatePath || null,
       outputName: req.body?.outputName || null,
+      autoCreate: req.body?.autoCreate,
     });
     service.broadcast('apply:done', { jobId: job.id, outputPath: result.outputPath, rows: result.rows });
     res.json(result);
@@ -286,7 +309,73 @@ app.get('/api/jobs/:id/download', (req, res) => {
   res.download(file, path.basename(file));
 });
 
+// ---- Workflows -----------------------------------------------------------
+app.get('/api/workflows', (req, res) => res.json(listWorkflows()));
+
+app.post('/api/workflows', (req, res) => {
+  const body = req.body || {};
+  try {
+    const workflow = createWorkflow({
+      name: body.name,
+      workflowType: body.workflowType || 'basic',
+      steps: body.steps,
+      destination: body.destination || undefined,
+      autoApply: !!body.autoApply,
+    });
+    res.status(201).json(workflow);
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.get('/api/workflows/:id', (req, res) => {
+  const workflow = getWorkflow(req.params.id);
+  if (!workflow) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
+  res.json(workflow);
+});
+
+app.put('/api/workflows/:id', (req, res) => {
+  const body = req.body || {};
+  const workflow = updateWorkflow(req.params.id, body);
+  if (!workflow) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
+  res.json(workflow);
+});
+
+app.delete('/api/workflows/:id', (req, res) => {
+  const ok = deleteWorkflow(req.params.id);
+  if (!ok) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
+  res.json({ ok: true });
+});
+
+// Run a workflow as a new job (workflow becomes the job's source of truth).
+app.post('/api/workflows/:id/run', (req, res) => {
+  const workflow = getWorkflow(req.params.id);
+  if (!workflow) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
+  const body = req.body || {};
+  const job = createJob({
+    workflowType: workflow.workflowType,
+    workflowId: workflow.id,
+    steps: workflow.steps,
+    input: {
+      files: Array.isArray(body.input?.files) ? body.input.files : undefined,
+      sourceDir: body.input?.sourceDir || undefined,
+    },
+    destination: {
+      templatePath: workflow.destination?.templatePath || undefined,
+      mode: workflow.destination?.mode || 'copy',
+      outputPath: workflow.destination?.outputPath || undefined,
+    },
+    autoApply: workflow.autoApply,
+  });
+  service.broadcast('job:create', { jobId: job.id, job });
+  const started = service.run(job, workflow.steps);
+  markWorkflowRun(workflow.id, job.id, started ? 'running' : 'queued');
+  res.status(201).json({ job, started });
+});
+
 // ---- Watch ---------------------------------------------------------------
+// Watch is user-controlled (start/stop via API + UI). Each debounced change
+// batch creates a watch-sync job that runs extract → ai → db.
 const watchService = createWatchService({
   watchDir: process.env.SOURCE_KMZ_DIR,
   log: (msg) => service.broadcast('watch:log', { message: msg }),
@@ -303,6 +392,19 @@ const watchService = createWatchService({
 });
 
 app.get('/api/watch', (req, res) => res.json(watchService.status()));
+
+app.post('/api/watch/start', (req, res) => {
+  const ok = watchService.start();
+  if (!ok) return res.status(400).json({ error: 'Cannot start watch — check SOURCE_KMZ_DIR' });
+  service.broadcast('watch:state', { watching: true });
+  res.json(watchService.status());
+});
+
+app.post('/api/watch/stop', (req, res) => {
+  watchService.stop();
+  service.broadcast('watch:state', { watching: false });
+  res.json(watchService.status());
+});
 
 // ---- Properties (read from Postgres) -------------------------------------
 app.get('/api/properties', async (req, res) => {
@@ -340,7 +442,7 @@ function sse(req, res) {
   for (const entry of service.history) {
     if (match(entry)) res.write(`data: ${JSON.stringify(entry)}\n\n`);
   }
-  const names = [...EVENT_NAMES, 'job:create', 'job:start', 'job:end', 'job:error', 'draft:ready', 'apply:done', 'watch:change', 'watch:log'];
+  const names = [...EVENT_NAMES, 'job:create', 'job:start', 'job:end', 'job:error', 'draft:ready', 'apply:done', 'watch:change', 'watch:log', 'watch:state'];
   const listeners = {};
   for (const n of names) {
     listeners[n] = (entry) => {

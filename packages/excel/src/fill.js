@@ -41,6 +41,19 @@ function openSheet(templatePath) {
   });
 }
 
+// Create missing header columns on the data sheet (auto-create support).
+function ensureHeaders(ws, autoCreate) {
+  if (!autoCreate || !autoCreate.length) return 0;
+  const startRow = findStartRow(ws);
+  const headerRow = startRow > 3 ? 3 : 1;
+  let created = 0;
+  for (const { column, header } of autoCreate) {
+    const cell = ws.getCell(`${column}${headerRow}`);
+    if (!cell.text.trim()) { cell.value = header; created++; }
+  }
+  return created;
+}
+
 function writeRows(ws, computed) {
   for (const { row, cells } of computed.rows) {
     for (const col of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'N']) {
@@ -51,33 +64,35 @@ function writeRows(ws, computed) {
 }
 
 // ---- Copy-based fill (creates a NEW output file, never touches the template) ----
-export async function fillCopy({ templatePath, outputPath, records }) {
+export async function fillCopy({ templatePath, outputPath, records, autoCreate }) {
   if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templatePath}`);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   const { workbook, ws } = await openSheet(templatePath);
+  const createdHeaders = ensureHeaders(ws, autoCreate);
   const computed = computeCopyRows(ws, records);
   writeRows(ws, computed);
   await workbook.xlsx.writeFile(outputPath);
-  return { outputPath, rows: records.length, startRow: computed.startRow, lastRow: computed.lastRow };
+  return { outputPath, rows: records.length, startRow: computed.startRow, lastRow: computed.lastRow, createdHeaders };
 }
 
 // ---- In-place fill (writes as-written prices into the ORIGINAL file, with forced backup) ----
-export async function fillInPlace({ originalPath, records, backupDir }) {
+export async function fillInPlace({ originalPath, records, backupDir, autoCreate }) {
   if (!fs.existsSync(originalPath)) throw new Error(`Original not found: ${originalPath}`);
   fs.mkdirSync(backupDir, { recursive: true });
   const backup = path.join(backupDir, `${path.basename(originalPath, '.xlsx')}_before_fill.xlsx`);
   fs.copyFileSync(originalPath, backup);
   const { workbook, ws } = await openSheet(originalPath);
+  const createdHeaders = ensureHeaders(ws, autoCreate);
   const computed = computeInPlaceRows(ws, records);
   writeRows(ws, computed);
   await workbook.xlsx.writeFile(originalPath);
-  return { outputPath: originalPath, backup, rows: records.length, startRow: computed.startRow, lastRow: computed.lastRow };
+  return { outputPath: originalPath, backup, rows: records.length, startRow: computed.startRow, lastRow: computed.lastRow, createdHeaders };
 }
 
 // ---- Draft preview: compute the exact rows that would be written, without writing ----
-export async function previewRows({ templatePath, records, mode = 'copy' }) {
+export async function previewRows({ templatePath, records, mode = 'copy', autoCreate }) {
   if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templatePath}`);
   const { ws } = await openSheet(templatePath);
   const computed = mode === 'original' ? computeInPlaceRows(ws, records) : computeCopyRows(ws, records);
-  return { mode, templatePath, startRow: computed.startRow, lastRow: computed.lastRow, rows: computed.rows };
+  return { mode, templatePath, startRow: computed.startRow, lastRow: computed.lastRow, rows: computed.rows, autoCreate: autoCreate || [] };
 }

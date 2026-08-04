@@ -11,9 +11,11 @@ const ROOT = path.resolve(__dirname, '../../..');
 // Watch a directory for .kmz changes and fire a debounced callback.
 // UI-agnostic: the caller decides what to do on sync (create a job, run the
 // pipeline, log). The CLI watch command and the REST API both use this.
-export function createWatchService({ watchDir, onSync, log = console.log, debounceMs = 1500 } = {}) {
+// Start/stop is explicit so the API and UI can toggle watch mode.
+export function createWatchService({ watchDir, onSync, log = console.log, debounceMs = 1500, autoStart = false } = {}) {
   let timer = null;
-  let running = false;
+  let watcher = null;
+  let started = false;
   let closed = false;
 
   function schedule(reason) {
@@ -21,39 +23,51 @@ export function createWatchService({ watchDir, onSync, log = console.log, deboun
     timer = setTimeout(() => onSync(reason), debounceMs);
   }
 
-  if (!watchDir) {
-    log('No SOURCE_KMZ_DIR configured — watcher disabled.');
-    return { close: () => {}, status: () => ({ enabled: false, watchDir: null, running: false }) };
+  function start() {
+    if (closed || started) return started;
+    if (!watchDir || !fs.existsSync(watchDir)) {
+      log(`Cannot watch: ${watchDir ? `dir not found: ${watchDir}` : 'no SOURCE_KMZ_DIR configured'}`);
+      return false;
+    }
+    started = true;
+    log(`Watching ${watchDir} for .kmz changes...`);
+    watcher = fs.watch(watchDir, { persistent: true }, (eventType, filename) => {
+      if (!started) return;
+      if (!filename || !filename.toLowerCase().endsWith('.kmz')) return;
+      const full = path.join(watchDir, filename);
+      const exists = fs.existsSync(full);
+      const reason = exists ? `add/modify: ${filename}` : `remove: ${filename}`;
+      log(`Change detected: ${reason}`);
+      schedule(reason);
+    });
+    watcher.on('error', (e) => log(`Watcher error: ${e.message}`));
+    return true;
   }
-  if (!fs.existsSync(watchDir)) {
-    log(`Watch dir not found: ${watchDir}`);
-    return { close: () => {}, status: () => ({ enabled: false, watchDir, running: false }) };
+
+  function stop() {
+    started = false;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (watcher) { try { watcher.close(); } catch { /* already closed */ } watcher = null; }
+    return true;
   }
-
-  log(`Watching ${watchDir} for .kmz changes...`);
-
-  const watcher = fs.watch(watchDir, { persistent: true }, (eventType, filename) => {
-    if (closed) return;
-    if (!filename || !filename.toLowerCase().endsWith('.kmz')) return;
-    const full = path.join(watchDir, filename);
-    const exists = fs.existsSync(full);
-    const reason = exists ? `add/modify: ${filename}` : `remove: ${filename}`;
-    log(`Change detected: ${reason}`);
-    schedule(reason);
-  });
-
-  watcher.on('error', (e) => log(`Watcher error: ${e.message}`));
 
   function close() {
     closed = true;
-    if (timer) clearTimeout(timer);
-    watcher.close();
+    stop();
   }
 
-  return {
-    close,
-    status: () => ({ enabled: true, watchDir, running }),
-  };
+  function status() {
+    return {
+      enabled: !!watchDir && fs.existsSync(watchDir),
+      watching: started,
+      watchDir: watchDir || null,
+      debounceMs,
+    };
+  }
+
+  if (autoStart) start();
+
+  return { start, stop, close, status };
 }
 
 // CLI-friendly auto-run: watch the source dir and run the full pipeline

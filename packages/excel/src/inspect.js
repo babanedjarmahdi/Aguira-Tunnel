@@ -1,7 +1,31 @@
 import fs from 'fs';
+import path from 'path';
 import ExcelJS from 'exceljs';
 import { SHEET_NAME } from './mapping.js';
 import { findStartRow } from './rows.js';
+
+// Expected header text per column (the KMZ workflow's destination contract).
+// Used to detect missing / mismatched / duplicate columns when validating a mapping.
+export const EXPECTED_HEADERS = {
+  A: 'معرف العقار',
+  B: 'نوع العقار',
+  C: 'حالة العقار',
+  D: 'الموقع/العنوان',
+  E: 'المساحة (م²)',
+  F: 'السعر المطلوب',
+  G: 'اسم المالك',
+  H: 'البائع',
+  I: 'رقم المالك',
+  J: 'ملاحظات',
+  K: 'تاريخ الإضافة',
+  L: 'ID_مساعد',
+  M: 'تطابق',
+  N: 'تاريخ البيع',
+};
+
+function norm(s) {
+  return String(s || '').replace(/[\s،؛.()\-/]/g, '').trim();
+}
 
 export async function inspectExcel({ templatePath }) {
   if (!templatePath) throw new Error('templatePath is required');
@@ -36,8 +60,74 @@ export async function inspectExcel({ templatePath }) {
   };
 }
 
+// Validate a field→column mapping against the template's headers.
+// Each mapping entry gains a `status`: ok | missing | duplicate-column |
+// mismatch | duplicate-header. `valid` is false when any issue exists;
+// `autoCreate` lists missing columns the engine can create on apply.
+export function validateMapping(mapping, headers) {
+  const headerTexts = new Map();
+  const seen = new Map();
+  for (const h of headers) {
+    headerTexts.set(h.column, h.header.trim());
+    const n = norm(h.header);
+    if (n) seen.set(n, [...(seen.get(n) || []), h.column]);
+  }
+
+  const issues = [];
+  const used = new Set();
+  for (const m of mapping) {
+    const col = m.excelColumn;
+    const header = headerTexts.get(col) || '';
+    const expected = EXPECTED_HEADERS[col];
+    let status = 'ok';
+    if (!header) status = 'missing';
+    else if (used.has(col)) status = 'duplicate-column';
+    else if (expected && norm(header) !== norm(expected)) status = 'mismatch';
+    else if ((seen.get(norm(header)) || []).length > 1) status = 'duplicate-header';
+    used.add(col);
+    m.status = status;
+    const message = status === 'ok' ? null
+      : status === 'missing' ? `Column ${col} (${m.aiField}) is missing from the template — will be created`
+      : status === 'duplicate-column' ? `Column ${col} is targeted by more than one field`
+      : status === 'mismatch' ? `Column ${col} header "${header}" differs from expected "${expected}"`
+      : `Column ${col} header "${header}" appears more than once in the template`;
+    if (message) issues.push({ field: m.aiField, column: col, status, message });
+  }
+
+  const autoCreate = mapping
+    .filter((m) => m.status === 'missing')
+    .map((m) => ({ column: m.excelColumn, header: EXPECTED_HEADERS[m.excelColumn] || m.aiField, aiField: m.aiField }));
+
+  return { valid: issues.length === 0, issues, autoCreate };
+}
+
+// ---- Mapping profiles: persist a validated mapping per template -------------
+function profileKey(templatePath) {
+  const b = Buffer.from(path.resolve(templatePath).toLowerCase(), 'utf8');
+  let h = 0;
+  for (let i = 0; i < b.length; i++) h = ((h * 31) + b[i]) | 0;
+  return Math.abs(h).toString(36);
+}
+
+export function mappingProfilePath({ templatePath, profilesDir }) {
+  return path.join(profilesDir, `${profileKey(templatePath)}.json`);
+}
+
+export function getMappingProfile({ templatePath, profilesDir }) {
+  const p = mappingProfilePath({ templatePath, profilesDir });
+  if (p && fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+  return null;
+}
+
+export function saveMappingProfile({ templatePath, mapping, sheet, profilesDir }) {
+  fs.mkdirSync(profilesDir, { recursive: true });
+  const profile = { templatePath, savedAt: new Date().toISOString(), sheet, mapping };
+  fs.writeFileSync(mappingProfilePath({ templatePath, profilesDir }), JSON.stringify(profile, null, 2), 'utf8');
+  return profile;
+}
+
 // Grounded column mapping: AI/engine field -> Excel column for the target workbook.
-export async function buildMapping({ templatePath }) {
+export async function buildMapping({ templatePath, profilesDir } = {}) {
   const info = await inspectExcel({ templatePath });
   const headerOf = (col) => (info.headers.find((h) => h.column === col) || {}).header || col;
 
@@ -58,5 +148,8 @@ export async function buildMapping({ templatePath }) {
     { aiField: 'sale_date', excelColumn: 'N', header: headerOf('N'), example: '— (cleared)', confidence: 100, role: 'const' },
   ];
 
-  return { sheet: info.sheet, headers: info.headers, mapping };
+  const validation = validateMapping(mapping, info.headers);
+  const profile = profilesDir ? getMappingProfile({ templatePath, profilesDir }) : null;
+
+  return { sheet: info.sheet, headers: info.headers, mapping, validation, profile };
 }

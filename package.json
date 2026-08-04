@@ -19,6 +19,7 @@
     "api": "node apps/api/src/server.js",
     "dev": "npm -w @terraflow/web run dev",
     "build": "npm -w @terraflow/web run build",
+    "build:web": "npm -w @terraflow/web run build && node -e \"const fs=require('fs'),path=require('path');const src=path.join('apps','web','dist'),dst=path.join('apps','api','public');fs.rmSync(dst,{recursive:true,force:true});fs.mkdirSync(dst,{recursive:true});fs.cpSync(src,dst,{recursive:true});console.log('Web build copied to apps/api/public (served on :3000)');\"",
     "preview": "npm -w @terraflow/web run preview",
     "test": "node --test \"packages/*/test/**/*.test.js\""
   }
