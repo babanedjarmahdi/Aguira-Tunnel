@@ -497,7 +497,8 @@ GET    /api/v1/pipeline/events         # SSE: jobs + watch events
 `POST /api/excel/mapping/profile`, the job routes `POST /api/jobs`,
 `GET /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
 `POST /api/jobs/:id/draft`, `GET /api/jobs/:id/draft`,
-`POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`, workflow CRUD under
+`POST /api/jobs/:id/apply`, `POST /api/jobs/:id/cancel`,
+`GET /api/jobs/:id/download`, workflow CRUD under
 `/api/workflows`, watch as `POST /api/watch/start` · `POST /api/watch/stop` ·
 `GET /api/watch`, and SSE on `/api/pipeline/events` / `/api/jobs/events`
 (`job:*` plus `watch:change`, `watch:log`, `watch:state`). The `/api/v1/`

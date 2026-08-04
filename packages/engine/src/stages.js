@@ -4,6 +4,7 @@ import { extractAll, extractFromFiles } from './extractor.js';
 import { createProvider } from '@terraflow/ai';
 import { loadFromDisk } from '@terraflow/database';
 import { fillCopy, fillInPlace } from '@terraflow/excel';
+import { abortableSleep, throwIfAborted } from '@terraflow/shared';
 import { EXCEL_OUT_DIR } from './config.js';
 import { emitLog } from './events.js';
 
@@ -19,6 +20,7 @@ import { emitLog } from './events.js';
 // ---- Stage 1: extract ----
 // Port of src/scripts/stage1_extract.js (behavior unchanged).
 export async function extractStage({ config, emitter, ctx }) {
+  throwIfAborted(ctx.signal, 'Canceled during extract');
   const { properties, removed, failures } = ctx.inputSourceDir
     ? extractAll(ctx.inputSourceDir)
     : ctx.inputFiles
@@ -95,6 +97,7 @@ export async function aiStage({ config, emitter, ctx }) {
   const failures = [];
 
   for (let i = 0; i < data.length; i++) {
+    throwIfAborted(ctx.signal, 'Canceled during AI enrichment');
     const entry = data[i];
     const key = `${entry.sourceFile}@${entry.placemarkIndex ?? 0}`;
     const label = `${i + 1}/${data.length} ${entry.sourceFile}`;
@@ -106,17 +109,18 @@ export async function aiStage({ config, emitter, ctx }) {
       continue;
     }
     try {
-      const ai = await provider.enrich(entry);
+      const ai = await provider.enrich(entry, { signal: ctx.signal });
       results.push({ ...entry, ai });
       ok++;
       emitLog(emitter, 'info', `[OK] ${label} -> ${ai.property_type ?? '?'} / ${ai.price_in_million ?? ai.price_per_meter ?? 'no price'}`);
     } catch (e) {
+      if (e.name === 'AbortError') throw e;
       results.push({ ...entry, ai: null, aiError: e.message });
       failures.push({ sourceFile: entry.sourceFile, error: e.message });
       emitLog(emitter, 'error', `[FAIL] ${label}: ${e.message}`);
     }
     fs.writeFileSync(ctx.aiPath, JSON.stringify(results, null, 2), 'utf8');
-    await new Promise((r) => setTimeout(r, provider.pacingMs()));
+    await abortableSleep(provider.pacingMs(), ctx.signal);
   }
 
   fs.writeFileSync(ctx.aiPath, JSON.stringify(results, null, 2), 'utf8');

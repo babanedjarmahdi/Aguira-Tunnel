@@ -50,6 +50,7 @@ export const getJob = (id) => api(`/api/jobs/${id}`);
 export const runJob = (id, body = {}) => api(`/api/jobs/${id}/run`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
+export const cancelJob = (id) => api(`/api/jobs/${id}/cancel`, { method: 'POST' });
 export const buildDraft = (id, body = {}) => api(`/api/jobs/${id}/draft`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });

@@ -175,12 +175,15 @@ The engine becomes a real workflow engine: Job model, safe execution
 | 2026-08-04 | **Watch mode done (1.3)**: `createWatchService` start/stop/close + `autoStart`; `POST /api/watch/start|stop` + `watch:state` SSE; wizard "Watch folder" input (Standby/Watching badge, start/stop, debounce) | `engine/watch.js`, `server.js`, `api.js`, `ImportWizard.jsx` | `473cf3e` |
 | 2026-08-04 | **Mapping validation + profiles done (1.4)**: `validateMapping` (ok/missing/duplicate-column/mismatch/duplicate-header + autoCreate), `ensureHeaders` auto-create threaded through draft/apply, `saveMappingProfile`/`getMappingProfile` (`output/mappings/`), `POST /api/excel/mapping/profile`, validation UI + save-profile in wizard | `excel/inspect.js`, `fill.js`, `engine/draft.js`, `config.js`, `index.js`, `server.js`, `api.js`, `ImportWizard.jsx` | `473cf3e` |
 | 2026-08-04 | **Docs-alignment pass done (1.9)**: VISION, ROADMAP, ARCHITECTURE_PLAN, DECISIONS (D18–D24), PLAN, ARCHITECTURE, STANDARD_JSON (no-op), DATA_MODEL, OPERATIONS, README aligned to the v0.4 workflow-engine reality | `docs/*.md`, `README.md` | `25d557e` |
-| 2026-08-04 | **Bugfix: black screen after "Continue" (upload → Excel destination)**: `ImportWizard.jsx` used `<Field>` without importing it → `ReferenceError` the moment `inspect` data rendered; added `Field` to the ui import. Rebuilt web → new bundle served on :3000; verified only :3000 listening (no Vite/5173) | `apps/web/src/pages/ImportWizard.jsx` | — (uncommitted) |
+| 2026-08-04 | **Bugfix: black screen after "Continue" (upload → Excel destination)**: `ImportWizard.jsx` used `<Field>` without importing it → `ReferenceError` the moment `inspect` data rendered; added `Field` to the ui import. Rebuilt web → new bundle served on :3000; verified only :3000 listening (no Vite/5173) | `apps/web/src/pages/ImportWizard.jsx` | `43c7eba` |
+| 2026-08-04 | **Reliability fixes**: (a) job cancellation — `AbortController` per running job, `abortableSleep`/`throwIfAborted` in `packages/shared`, signal threaded through `runPipeline` → stages → `provider.enrich`; `POST /api/jobs/:id/cancel` + `job:canceled` SSE + Cancel buttons (Jobs page + wizard progress); (b) Groq 429 — respect `Retry-After`, backoff capped 120s, retries=8 (verified: job #13 waited out the rate limit and completed instead of failing); (c) boot recovery — leftover `running` jobs marked `failed` + their workflow `failed` (verified job #11 → failed, wf #1 → failed). Live tests: job #12 canceled mid-AI; full smoke job #13 upload→complete→draft→apply→file OK; 13/13 tests | `shared/async.js`, `ai/groq.js`, `provider.js`, `engine/orchestrator.js`, `stages.js`, `api/server.js`, `web/api.js`, `Jobs.jsx`, `ImportWizard.jsx` | (this commit) |
 
 ## 3. In progress (current)
 
-- **Commit + push the docs-alignment wave** (1.9): stage, commit, push to `origin main`.
-- **Next:** Part 2 — Professional mode (v0.5).
+- **Commit + push the reliability fixes wave** (cancellation + Groq 429 + boot
+  recovery + docs), then start Part 2 — Professional mode (v0.5).
+- **Next:** Part 2 — Professional mode (v0.5): AI configuration panel
+  (provider/key/rate-limit settings), Excel template manager, workflow builder.
 
 ## 4. Not started / next up (backlog order)
 
@@ -207,9 +210,17 @@ The engine becomes a real workflow engine: Job model, safe execution
 - Source dir: `C:\Users\USER\Documents\MEGA UPLOAD\GOOGLE EARTH` (146 `.kmz`);
   smoke test used smallest `156م.kmz` (868 B).
 - Test: `$env:EXCEL_TEMPLATE=...; node --test "packages/excel/test/*.test.js"` → 13/13.
-- Live state: jobs #1–7 (`nextId: 8`) — #3 + #7 completed (smoke runs), rest
-  failed; workflow #1 "Smoke test flow"; mapping profile saved for the template.
+- Live state: jobs #1–13 (`nextId: 14`) — #3, #7, #13 completed; #12 canceled
+  (live cancel test); #11 failed (boot recovery); workflow #1 "Smoke test flow"
+  (lastStatus failed); mapping profile saved for the template.
   API runs on :3000, watch is user-controlled (start/stop via UI).
+- **Groq free tier rate-limits:** during heavy runs the API returns 429; the AI
+  stage now respects `Retry-After` and backs off (cap 120s, 8 retries) per record,
+  so a run stays `running` longer instead of failing — a single record can wait
+  a few minutes while the quota resets.
+- **Cancel semantics:** `POST /api/jobs/:id/cancel` aborts a running/queued job →
+  `status=canceled`, `error="Canceled by user"`; terminal jobs return 409. On
+  server restart, leftover `running` jobs are marked `failed` (boot recovery).
 
 *Companion docs: [README](../README.md) · [ROADMAP.md](ROADMAP.md) ·
 [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) ·

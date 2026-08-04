@@ -34,6 +34,7 @@ class JobService {
     this.events = new EventEmitter();
     this.history = [];
     this.running = new Map();
+    this.controllers = new Map();
     this.currentJobId = null;
   }
 
@@ -48,9 +49,33 @@ class JobService {
     return this.running.has(jobId);
   }
 
+  cancel(jobId) {
+    const controller = this.controllers.get(jobId);
+    if (!controller) return false;
+    controller.abort();
+    return true;
+  }
+
+  // Called on boot: any job left 'running' by a previous process never gets a
+  // terminal update, so mark it failed and reflect that on its workflow.
+  recover() {
+    for (const job of listJobs(200)) {
+      if (job.status === 'running' || job.status === 'queued') {
+        updateJob(job.id, {
+          status: 'failed', currentStage: null, finishedAt: new Date().toISOString(),
+          error: 'Interrupted - leftover from a stopped server process',
+        });
+        if (job.workflowId) markWorkflowRun(job.workflowId, job.id, 'failed');
+        this.broadcast('job:error', { jobId: job.id, error: 'Interrupted - leftover from a stopped server process' });
+      }
+    }
+  }
+
   run(job, stages) {
     if (this.running.has(job.id)) return false;
+    const controller = new AbortController();
     this.running.set(job.id, true);
+    this.controllers.set(job.id, controller);
     this.currentJobId = job.id;
     const t0 = Date.now();
 
@@ -67,27 +92,26 @@ class JobService {
     };
     for (const n of EVENT_NAMES) emitter.on(n, wrap(n));
 
-    runPipeline({ job, stages, env: this.env, emitter })
-      .then(({ summary }) => {
-        this.running.delete(job.id);
-        if (this.currentJobId === job.id) this.currentJobId = null;
-        updateJob(job.id, {
-          status: 'completed', currentStage: null, finishedAt: new Date().toISOString(),
-          durationMs: Date.now() - t0, summary,
-        });
-        if (job.workflowId) markWorkflowRun(job.workflowId, job.id, 'completed');
-        this.broadcast('job:end', { jobId: job.id, summary });
-      })
+    const finish = (status, patch, eventName) => {
+      this.running.delete(job.id);
+      this.controllers.delete(job.id);
+      if (this.currentJobId === job.id) this.currentJobId = null;
+      updateJob(job.id, { status, currentStage: null, finishedAt: new Date().toISOString(), durationMs: Date.now() - t0, ...patch });
+      if (job.workflowId) markWorkflowRun(job.workflowId, job.id, status);
+      this.broadcast(eventName, { jobId: job.id, ...patch });
+    };
+
+    runPipeline({ job, stages, env: this.env, emitter, signal: controller.signal })
+      .then(({ summary }) => finish('completed', { summary }, 'job:end'))
       .catch((err) => {
-        this.running.delete(job.id);
-        if (this.currentJobId === job.id) this.currentJobId = null;
-        const msg = String(err && (err.stack || err.message) || err);
-        updateJob(job.id, {
-          status: 'failed', currentStage: null, finishedAt: new Date().toISOString(),
-          durationMs: Date.now() - t0, error: msg,
-        });
-        if (job.workflowId) markWorkflowRun(job.workflowId, job.id, 'failed');
-        this.broadcast('job:error', { jobId: job.id, error: msg });
+        if (err?.name === 'AbortError') {
+          const msg = 'Canceled by user';
+          pushJobLog(job.id, { level: 'warn', message: msg });
+          finish('canceled', { error: msg }, 'job:canceled');
+        } else {
+          const msg = String(err && (err.stack || err.message) || err);
+          finish('failed', { error: msg }, 'job:error');
+        }
       });
     return true;
   }
@@ -122,6 +146,7 @@ class JobService {
 }
 
 const service = new JobService(process.env);
+service.recover();
 const app = express();
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
@@ -258,6 +283,16 @@ app.post('/api/jobs/:id/run', (req, res) => {
   const started = service.run(job, stages);
   if (!started) return res.status(409).json({ error: 'Job already running' });
   res.status(202).json({ jobId: job.id, stages, started: true });
+});
+
+app.post('/api/jobs/:id/cancel', (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: `Job ${req.params.id} not found` });
+  if (job.status === 'completed' || job.status === 'failed' || job.status === 'canceled') {
+    return res.status(409).json({ error: `Job already ${job.status}` });
+  }
+  const ok = service.cancel(job.id);
+  res.json({ jobId: job.id, cancelRequested: ok });
 });
 
 app.post('/api/jobs/:id/draft', async (req, res) => {
@@ -442,7 +477,7 @@ function sse(req, res) {
   for (const entry of service.history) {
     if (match(entry)) res.write(`data: ${JSON.stringify(entry)}\n\n`);
   }
-  const names = [...EVENT_NAMES, 'job:create', 'job:start', 'job:end', 'job:error', 'draft:ready', 'apply:done', 'watch:change', 'watch:log', 'watch:state'];
+  const names = [...EVENT_NAMES, 'job:create', 'job:start', 'job:end', 'job:error', 'job:canceled', 'draft:ready', 'apply:done', 'watch:change', 'watch:log', 'watch:state'];
   const listeners = {};
   for (const n of names) {
     listeners[n] = (entry) => {

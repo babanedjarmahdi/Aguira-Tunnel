@@ -120,6 +120,7 @@ workbook (backs it up first) — use it deliberately, prefer `fill` otherwise.
 | POST | `/api/jobs` · `GET /api/jobs` | Create / list Jobs (persisted history) |
 | GET | `/api/jobs/:id` | Job record + status |
 | POST | `/api/jobs/:id/run` | Run a Job's workflow |
+| POST | `/api/jobs/:id/cancel` | Cancel a running / queued Job |
 | POST | `/api/jobs/:id/draft` · `GET /api/jobs/:id/draft` | Generate / preview the draft |
 | POST | `/api/jobs/:id/apply` | Apply the reviewed draft (safe execution) |
 | GET | `/api/jobs/:id/download` | Resulting destination file |

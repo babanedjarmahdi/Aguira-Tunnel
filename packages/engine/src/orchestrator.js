@@ -1,6 +1,7 @@
 import path from 'path';
 import { loadConfig, JOBS_DIR, JSON_FILE, AI_FILE, REPORT_FILE } from './config.js';
 import { createEmitter } from './events.js';
+import { createAbortError } from '@terraflow/shared';
 import { extractStage, aiStage, dbStage, fillStage, fillOriginalStage } from './stages.js';
 import { jobWorkDir } from './draft.js';
 import { readKmzFiles } from './kmz.js';
@@ -48,16 +49,25 @@ export function resolveInput(config, ctx) {
 // Run any ordered subset of stages, emitting structured events.
 // Input-driven: pass a `job` (persisted Job record) to scope every write to the
 // job's own directory and pull the input from the job's `input` field.
+// Pass an optional AbortSignal to cancel the run (stages check it between and
+// within loops; aborted runs reject with an AbortError).
 // Emits: stage:start, stage:progress, log, stage:end, stage:error,
 //        pipeline:complete, pipeline:error
-export async function runPipeline({ job = null, stages = null, env = process.env, emitter = createEmitter() } = {}) {
+export async function runPipeline({ job = null, stages = null, env = process.env, emitter = createEmitter(), signal = null } = {}) {
   const config = loadConfig(env);
   const ctx = buildContext(config, job);
+  ctx.signal = signal;
   const names = stages || (job?.steps?.length ? job.steps : defaultStagesFor(job));
   const results = {};
   const summary = { stages: [], ok: [], failed: [] };
 
   for (const name of names) {
+    if (signal?.aborted) {
+      const err = createAbortError();
+      emitter.emit('stage:error', { stage: name, error: err });
+      emitter.emit('pipeline:error', { stage: name, error: err });
+      throw err;
+    }
     const fn = STAGES[name];
     if (!fn) {
       const err = new Error(`Unknown stage: ${name}`);

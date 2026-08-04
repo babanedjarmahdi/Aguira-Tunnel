@@ -6,7 +6,7 @@ import {
   ClipboardList, Download, AlertTriangle, Clock, Radar, Square, ExternalLink, Bookmark,
 } from 'lucide-react';
 import {
-  uploadKmz, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft,
+  uploadKmz, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft, cancelJob,
   useJobEvents, getConfig, usePoll, getWatch, watchStart, watchStop,
 } from '../api';
 import { Button, Badge, Progress, Dot, useToast, Card, Spinner, Segmented, Empty, Field } from '../components/ui';
@@ -175,6 +175,15 @@ export default function ImportWizard() {
       toast(e.message, 'err');
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const doCancelJob = async () => {
+    try {
+      await cancelJob(jobId);
+      toast(`Cancel requested for job #${jobId}`);
+    } catch (e) {
+      toast(e.message, 'err');
     }
   };
 
@@ -496,9 +505,14 @@ export default function ImportWizard() {
           </div>
           <div className="flex between mt-16">
             <Button variant="ghost" onClick={() => setStep(2)} disabled={!!job?.status && job?.status === 'running'}>Back</Button>
-            <Button variant="primary" icon={CheckCircle2} onClick={reviewDraft} disabled={!jobDone} loading={draftLoading}>
-              {draftLoading ? <><Spinner /> Building draft…</> : <>Review draft</>}
-            </Button>
+            <div className="flex gap-8">
+              {(job?.status === 'running' || job?.status === 'queued') && (
+                <Button variant="ghost" icon={Square} onClick={doCancelJob}>Cancel job</Button>
+              )}
+              <Button variant="primary" icon={CheckCircle2} onClick={reviewDraft} disabled={!jobDone} loading={draftLoading}>
+                {draftLoading ? <><Spinner /> Building draft…</> : <>Review draft</>}
+              </Button>
+            </div>
           </div>
         </Card>
       )}

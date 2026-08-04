@@ -121,10 +121,11 @@ Endpoints today:
 - Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`,
   `POST /api/excel/mapping/profile` (save mapping profile)
 - Jobs: `GET|POST /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
-  `POST|GET /api/jobs/:id/draft`, `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`
+  `POST /api/jobs/:id/cancel`, `POST|GET /api/jobs/:id/draft`,
+  `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`
 - Workflows: `GET|POST /api/workflows`, `GET|PUT|DELETE /api/workflows/:id`, `POST /api/workflows/:id/run`
 - Watch: `GET /api/watch`, `POST /api/watch/start`, `POST /api/watch/stop`
-- Events: `GET /api/pipeline/events | /api/jobs/events` (SSE, `?jobId=` filter)
+- Events: `GET /api/pipeline/events | /api/jobs/events` (SSE, `?jobId=` filter; includes `job:canceled`)
 
 ---
 

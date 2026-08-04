@@ -1,4 +1,5 @@
 import { AIProvider } from './provider.js';
+import { abortableSleep } from '@terraflow/shared';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
@@ -23,6 +24,16 @@ Rules:
 - If a field is truly absent, use null. Do NOT invent values.
 Return the JSON object only, no commentary.`;
 
+// Groq returns either seconds or an HTTP-date in Retry-After.
+function retryAfterMs(value) {
+  if (!value) return 0;
+  const secs = Number(value);
+  if (Number.isFinite(secs) && secs > 0) return secs * 1000;
+  const ms = Date.parse(value);
+  if (Number.isFinite(ms)) return Math.max(0, ms - Date.now());
+  return 0;
+}
+
 export class GroqProvider extends AIProvider {
   constructor({ apiKey, model }) {
     super();
@@ -30,7 +41,7 @@ export class GroqProvider extends AIProvider {
     this.model = model || 'llama-3.3-70b-versatile';
   }
 
-  async enrich(entry, retries = 5) {
+  async enrich(entry, { signal, retries = 8 } = {}) {
     const body = {
       model: this.model,
       messages: [
@@ -41,14 +52,13 @@ export class GroqProvider extends AIProvider {
       response_format: { type: 'json_object' },
     };
 
+    const backoffFor = (attempt) => Math.min(120000, 3000 * Math.pow(2, Math.max(0, attempt - 1)));
+
     let lastErr;
     for (let attempt = 0; attempt <= retries; attempt++) {
-      if (attempt > 0) {
-        const wait = Math.min(60000, 3000 * Math.pow(2, attempt - 1));
-        await new Promise((r) => setTimeout(r, wait));
-      }
+      let res;
       try {
-        const res = await fetch(GROQ_URL, {
+        res = await fetch(GROQ_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -56,24 +66,30 @@ export class GroqProvider extends AIProvider {
           },
           body: JSON.stringify(body),
         });
-
-        if (res.status === 429) {
-          lastErr = new Error('Groq API 429 rate limit');
-          continue;
-        }
-
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Groq API ${res.status}: ${text.slice(0, 500)}`);
-        }
-
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content;
-        return JSON.parse(content);
       } catch (e) {
-        lastErr = e;
-        if (!String(e.message).includes('429')) throw e;
+        if (e.name === 'AbortError') throw e;
+        lastErr = e; // transient network failure -> retry with backoff
+        if (attempt < retries) await abortableSleep(backoffFor(attempt), signal);
+        continue;
       }
+
+      if (res.status === 429) {
+        lastErr = new Error('Groq API 429 rate limit');
+        if (attempt < retries) {
+          const wait = Math.max(retryAfterMs(res.headers.get('retry-after')), backoffFor(attempt));
+          await abortableSleep(wait, signal);
+        }
+        continue;
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Groq API ${res.status}: ${text.slice(0, 500)}`);
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+      return JSON.parse(content);
     }
     throw lastErr;
   }
