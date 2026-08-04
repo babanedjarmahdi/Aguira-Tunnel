@@ -9,6 +9,15 @@ breaking change is unavoidable.
 
 **Current version:** `1`
 
+> **Workflow framing.** A Standard JSON contract defines the **canonical record**
+> for a *workflow* — the record type its input adapters produce, its transforms
+> enrich, and its output adapters consume. **Version 1 is the Property record**
+> for the KMZ → AI → Excel workflow. Future workflows define their own record
+> types (e.g. a `Document`, `Client` or `Product` record) reusing the same
+> conventions: `schemaVersion`, nullable semantics, Arabic-first text, and
+> "add, never rename/remove" (see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §8
+> and [VISION.md](VISION.md) §8).
+
 ---
 
 ## 1. Version 1 — Property record
@@ -127,9 +136,11 @@ collected first to avoid collisions.
 ## 5. Future versions
 
 - **v2** (planned): add `photos[]`, `documents[]`, `published` (public-website
-  flag), `tenantId` (SaaS). All **additive**.
+  flag), `tenantId` / `workspaceId` (SaaS/workspaces). All **additive**.
 - **v3+**: per-module contracts (`client`, `visit`, `task`) will reuse the same
-  conventions (schemaVersion, nullable semantics, Arabic-first).
+  conventions (schemaVersion, nullable semantics, Arabic-first). In the plugin
+  era each workflow/plugin declares the record type it produces or consumes, so
+  the registry can validate compatibility at load time.
 
 ---
 

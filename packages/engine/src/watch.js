@@ -1,76 +1,39 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { runPipeline } from './orchestrator.js';
+import { createEmitter } from './events.js';
+import { createJob } from './jobs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../..');
 
-export function runWatcher({ cliPath = __dirname } = {}) {
-  const watchDir = process.env.SOURCE_KMZ_DIR;
-  const logFile = path.join(ROOT, 'output', 'watcher.log');
-
+// Watch a directory for .kmz changes and fire a debounced callback.
+// UI-agnostic: the caller decides what to do on sync (create a job, run the
+// pipeline, log). The CLI watch command and the REST API both use this.
+export function createWatchService({ watchDir, onSync, log = console.log, debounceMs = 1500 } = {}) {
   let timer = null;
   let running = false;
-
-  function log(msg) {
-    const line = `[${new Date().toISOString()}] ${msg}`;
-    console.log(line);
-    fs.mkdirSync(path.dirname(logFile), { recursive: true });
-    fs.appendFileSync(logFile, line + '\n', 'utf8');
-  }
-
-  function runStep(name, cmd, quiet = true) {
-    const proc = process.execPath;
-    const args = [path.join(cliPath, 'cli.js'), cmd];
-    log(`RUN ${name}: ${cmd}`);
-    const out = execSync(`${JSON.stringify(proc)} ${args.map((a) => JSON.stringify(a)).join(' ')}`, {
-      cwd: ROOT,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    if (!quiet) log(out);
-    log(`DONE ${name}`);
-  }
-
-  function runPipeline(reason) {
-    if (running) {
-      log(`Pipeline already running (skip ${reason})`);
-      return;
-    }
-    running = true;
-    try {
-      log(`=== SYNC START (${reason}) ===`);
-      runStep('extract', 'extract');
-      runStep('ai', 'ai');
-      runStep('db', 'loaddb');
-      runStep('excel', 'fill');
-      const filled = path.join(ROOT, 'output', 'excel', 'CRM_GPT_Immobilier_Employees_V8_10_2_2_filled.xlsx');
-      if (fs.existsSync(filled)) {
-        fs.copyFileSync(filled, path.join(path.dirname(filled), 'CRM_GPT_Immobilier_Employees_V8_10_2_2_filled.xlsx'));
-        log('Excel copy refreshed.');
-      }
-      log('=== SYNC COMPLETE ===');
-    } catch (e) {
-      log(`SYNC ERROR: ${e.message}`);
-    } finally {
-      running = false;
-    }
-  }
+  let closed = false;
 
   function schedule(reason) {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => runPipeline(reason), 1500);
+    timer = setTimeout(() => onSync(reason), debounceMs);
   }
 
+  if (!watchDir) {
+    log('No SOURCE_KMZ_DIR configured — watcher disabled.');
+    return { close: () => {}, status: () => ({ enabled: false, watchDir: null, running: false }) };
+  }
   if (!fs.existsSync(watchDir)) {
     log(`Watch dir not found: ${watchDir}`);
-    process.exit(1);
+    return { close: () => {}, status: () => ({ enabled: false, watchDir, running: false }) };
   }
 
   log(`Watching ${watchDir} for .kmz changes...`);
 
   const watcher = fs.watch(watchDir, { persistent: true }, (eventType, filename) => {
+    if (closed) return;
     if (!filename || !filename.toLowerCase().endsWith('.kmz')) return;
     const full = path.join(watchDir, filename);
     const exists = fs.existsSync(full);
@@ -81,12 +44,44 @@ export function runWatcher({ cliPath = __dirname } = {}) {
 
   watcher.on('error', (e) => log(`Watcher error: ${e.message}`));
 
-  process.on('SIGINT', () => {
-    log('Stopping watcher.');
+  function close() {
+    closed = true;
+    if (timer) clearTimeout(timer);
     watcher.close();
-    process.exit(0);
+  }
+
+  return {
+    close,
+    status: () => ({ enabled: true, watchDir, running }),
+  };
+}
+
+// CLI-friendly auto-run: watch the source dir and run the full pipeline
+// (including Excel fill) on every change batch, just like the legacy watcher.
+export function runWatcher({ emitter = createEmitter() } = {}) {
+  const logFile = path.join(ROOT, 'output', 'watcher.log');
+  function log(msg) {
+    const line = `[${new Date().toISOString()}] ${msg}`;
+    console.log(line);
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    fs.appendFileSync(logFile, line + '\n', 'utf8');
+  }
+
+  const service = createWatchService({
+    watchDir: process.env.SOURCE_KMZ_DIR,
+    log,
+    onSync: async (reason) => {
+      const job = createJob({ workflowType: 'watch-sync', input: { sourceDir: process.env.SOURCE_KMZ_DIR }, autoApply: true });
+      log(`=== SYNC START (${reason}) job #${job.id} ===`);
+      try {
+        const { summary } = await runPipeline({ job, emitter });
+        log(`=== SYNC COMPLETE (job #${job.id}, ok: ${summary.ok.join(', ') || 'none'}) ===`);
+      } catch (e) {
+        log(`SYNC ERROR: ${e.message}`);
+      }
+    },
   });
 
-  // Run once at startup to bring everything in sync
-  schedule('startup');
+  log('Watcher ready.');
+  return service;
 }

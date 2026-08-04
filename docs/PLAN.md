@@ -1,11 +1,25 @@
 # TerraFlow — Execution Plan (KMZ → Database → Excel)
 
+> **Historical document.** This was the original Phase-1 execution plan. Every
+> item is now **built and verified**, and the product has since been reframed as
+> the TerraFlow Engine (a **workflow engine**, not an Excel tool — Excel is one
+> output adapter). The current direction lives in
+> [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) ·
+> [ROADMAP.md](ROADMAP.md). This file is kept as a record of how Phase 1 was
+> executed.
+
 The original execution plan for the first TerraFlow module. Every item is now
 **built and verified**. Status maps each plan item to the implementing file.
 
 **Input:** 146 KMZ from `Documents\MEGA UPLOAD\GOOGLE EARTH`
 **Excel template:** `Desktop\CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`
 **Build dir:** `C:\Users\USER\Desktop\CRM_PRO`
+
+> **Note on paths.** The `src/lib/*` / `src/scripts/*` references below are the
+> Phase-1 locations. The code was later moved into the monorepo packages
+> (`packages/shared`, `packages/ai`, `packages/excel`, `packages/database`,
+> `packages/engine`) — see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §4 for the
+> current layout.
 
 ---
 
@@ -62,8 +76,8 @@ all 6 workbook sheets preserved, written to a copy of the template.
 
 | Feature | File |
 |---|---|
-| Live file watcher — auto re-sync on KMZ add/remove | `src/scripts/watch.js` |
-| AI provider abstraction (design only, refactor later) | [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §10 |
+| Live file watcher — auto re-sync on KMZ add/remove | `packages/engine/src/watch.js` (CLI-only today; service-based watch is v0.4) |
+| AI provider abstraction (design only, refactor later) | [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §12 |
 | Versioned Standard JSON contract | [STANDARD_JSON.md](STANDARD_JSON.md) |
 | Project documentation suite | `docs/` |
 

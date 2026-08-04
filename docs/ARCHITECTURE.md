@@ -1,122 +1,134 @@
-# TerraFlow — Architecture
+# TerraFlow Engine — Architecture
 
-This document describes both the **current** architecture (Phase 1, working
-today) and the **target** architecture the codebase is designed to grow into.
+This document maps the **current implementation** — the monorepo as it exists
+today. The **forward-looking blueprint** (workflow engine, adapters/plugins, Job
+model, draft → preview → apply, scalability, ecosystem) lives in
+**[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md)**.
+
+> **One-line framing:** TerraFlow is a **workflow engine**. The pipeline below is
+> the *first workflow* (KMZ → AI → Excel); Excel is one output adapter, not the
+> product.
 
 ---
 
-## 1. Current architecture (Phase 1)
+## 1. Current architecture
 
 ```
- ┌──────────────────────────────────────────────────────────────────┐
- │                         TERRAFLOW (Node.js)                        │
- │                                                                    │
- │   src/lib/           src/scripts/                                  │
- │   ├── kmz.js         ├── stage1_extract.js   (extract + dedupe)    │
- │   ├── extractor.js   ├── stage2_ai.js        (Groq enrichment)     │
- │   ├── ai.js          ├── stage1_loaddb.js    (PostgreSQL upsert)   │
- │   │                  ├── stage2_fill.js      (Excel append)        │
- │   │                  └── watch.js            (file watcher)        │
- └──────────┬─────────────────────────────────────────────────────────┘
-            │
-   ┌────────┴─────────┐   ┌──────────────────┐   ┌──────────────────┐
-   │ SOURCE_KMZ_DIR   │   │ PostgreSQL 16    │   │ EXCEL_TEMPLATE   │
-   │ (Google Earth    │   │ (Docker)         │   │ (CRM workbook)   │
-   │  folder, .kmz)   │   │ terraflow DB     │   │ copy is written  │
-   └──────────────────┘   └──────────────────┘   └──────────────────┘
-            │
-   ┌────────┴─────────┐   ┌──────────────────┐
-   │ DONE_KMZ_DIR     │   │ output/          │
-   │ (processed copy) │   │ json/, excel/,   │
-   └──────────────────┘   │ watcher.log      │
-                          └──────────────────┘
+ ┌─────────────────────────────────────────────────────────────┐
+ │                         TERRAFLOW ENGINE                      │
+ │                                                               │
+ │  apps/web (React + Vite) ──REST + SSE──► apps/api (Express)    │
+ │                                                               │
+ │  packages/engine        the orchestration layer (UI-agnostic) │
+ │    orchestrator.js      runPipeline({ stages, env, emitter })  │
+ │    stages.js            extract → ai → db → fill (+ original)  │
+ │    kmz.js / extractor.js   KMZ input adapter (unzip/parse/dedupe)│
+ │    watch.js             CLI file watcher (folder → re-sync)     │
+ │    config.js / events.js / cli.js                                │
+ │       │                                                         │
+ │  ┌────┴───────────┐  ┌───────────────┐  ┌────────────────────┐  │
+ │  │ packages/ai    │  │ packages/excel │  │ packages/database  │  │
+ │  │ AIProvider     │  │ Excel output   │  │ Postgres output    │  │
+ │  │  interface     │  │  adapter       │  │  adapter           │  │
+ │  │ Groq adapter   │  │ fill/mapping/  │  │ pg client +        │  │
+ │  │ createProvider │  │ price          │  │ loadFromJsonFiles  │  │
+ │  └────┬───────────┘  └────┬──────────┘  └────┬───────────────┘  │
+ │       │                  │                  │                   │
+ │  packages/shared: normalize.js · price.js · standard.js (canonical JSON validation)
+ └───────┴──────────────────┴──────────────────┴───────────────────┘
+          │                 │                  │
+   ┌──────▼──────┐   ┌──────▼──────┐   ┌───────▼────────┐
+   │ SOURCE_KMZ_DIR│   │ PostgreSQL 16 │   │ EXCEL_TEMPLATE │
+   │ (Google Earth│   │ (Docker)      │   │ (CRM workbook;  │
+   │  folder, .kmz)│  │ terraflow DB  │   │  a copy is      │
+   └─────────────┘   └──────────────┘   │  written, never  │
+                                        │  the original)   │
+                                        └──────────────────┘
 ```
 
-### Modules (src/lib)
+**Invariant (D3/D17):** the engine owns all business logic; `apps/api` and
+`apps/web` are thin adapters. The engine emits structured events so any consumer
+(CLI, SSE, future ecosystem apps) can attach without the engine knowing about it.
 
-| File | Responsibility |
+---
+
+## 2. Package responsibilities
+
+| Package | Responsibility |
 |---|---|
-| `src/lib/kmz.js` | Unzip `.kmz` → `doc.kml`; parse KML (incl. multi-Placemark Folders); read area from the name (`parseAreaFromName`); normalize Arabic text. |
-| `src/lib/extractor.js` | `extractAll(sourceDir)` — read all KMZ files, parse them, smart-dedupe (group by area+coords, then normalized description), return `{ properties, removed, failures }`. |
-| `src/lib/ai.js` | Groq client. `extractPropertyWithAI()` with retry/backoff on 429; `pacingDelayMs()` throttle for free-tier TPM; `computePriceDzd()` price conversion. |
+| `packages/engine` | The workflow engine. `runPipeline()` orchestrates stages; `extractor.js`/`kmz.js` parse and dedupe KMZ; `stages.js` defines each stage; `watch.js` is the CLI watcher; `config.js` reads `.env`; `events.js` defines structured events; `cli.js` exposes subcommands. |
+| `packages/ai` | AI layer. `provider.js` defines the `AIProvider` interface (enrich + pacing); `groq.js` is today's implementation; `index.js` exports `createProvider()`. Provider is chosen by config — no engine code depends on Groq directly (D4). |
+| `packages/excel` | Excel **output adapter**. `fill.js` (copy-fill + in-place fill), `mapping.js` (field → column mapping), `price.js` (DZD price/location display formatters). |
+| `packages/database` | PostgreSQL **output adapter**. `client.js` wraps `pg`; sync/upsert of canonical records (`loadFromJsonFiles`). |
+| `packages/shared` | Pure domain logic, no I/O: Arabic text normalization, DZD price math, canonical record JSON validation. |
 
-### Pipeline scripts (src/scripts)
-
-| Script | Input | Output | Purpose |
-|---|---|---|---|
-| `stage1_extract.js` | `SOURCE_KMZ_DIR/*.kmz` | `output/json/properties.json` + `output/json/dedupe_report.txt` | Parse all KMZ, dedupe, copy processed files to `DONE_KMZ_DIR`. |
-| `stage2_ai.js` | `properties.json` | `output/json/properties_ai.json` | AI-extract structured fields. Resume-safe (caches by `sourceFile@placemarkIndex`), writes incrementally, throttles. |
-| `stage1_loaddb.js` | `properties.json` (+ `properties_ai.json` if present) | PostgreSQL `properties` table | Full sync: delete stale rows (source file gone), upsert current set with AI fields. |
-| `stage2_fill.js` | `properties_ai.json` | `output/excel/CRM_GPT_Immobilier_Employees_V8_10_2_2_filled.xlsx` | Append rows to a **copy** of the template starting after the last real data row (row 27+). Generates IDs, computes prices, continues `ID_مساعد`. |
-| `watch.js` | — | `output/watcher.log` | Watch `SOURCE_KMZ_DIR` for `.kmz` add/remove, debounce 1.5 s, run the whole pipeline, log to `watcher.log`. Runs once at startup. |
-
-### The watcher (live sync)
-
-`watch.js` is the operator-facing entry point. When a `.kmz` appears or
-disappears it re-runs the full chain in order:
-
-```
-extract → AI (only new files; cached ones skip) → DB (upsert + prune) → Excel
-```
-
-It guards against overlapping runs (`running` flag) and debounces burst events
-(1.5 s). This is how the Excel output stays in sync with the Google Earth folder
-with zero manual steps.
+Every package exposes a small public surface via `index.js`; nothing reaches into
+another package's internals.
 
 ---
 
-## 2. Target architecture
+## 3. The pipeline (the first workflow)
 
-The forward-looking blueprint (modules, data flow, API strategy, AI layer,
-scalability, SaaS evolution, roadmap) is the CTO document:
+Run via CLI (`npm run pipeline`) or API (`POST /api/pipeline`). All stages are
+**idempotent** — safe to re-run, safe to retry.
 
-> **[ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md)** — the full 19-section
-> platform architecture.
+| Stage | File | Behavior |
+|---|---|---|
+| **extract** | `packages/engine/src/stages.js` → `extractor.js` | Read every `.kmz` in `SOURCE_KMZ_DIR`, unzip → KML, parse pins, smart-dedupe, write `output/json/properties.json` + `dedupe_report.txt`, copy processed files to `DONE_KMZ_DIR`. |
+| **ai** | `stages.js` → `packages/ai` | Enrich each record via the AI provider (Groq today). Resume-safe: caches by `sourceFile@placemarkIndex`, writes incrementally, throttles (D10). Output `output/json/properties_ai.json`. |
+| **db** | `stages.js` → `packages/database` | Full sync: prune stale rows, upsert on `(source_file, placemark_idx)`. |
+| **fill** | `stages.js` → `packages/excel` | Copy the template workbook and append rows (never touches the original). |
+| **fill:original** | `stages.js` → `fillInPlace` | Sanctioned exception (D7): writes into the user's original workbook **only** on explicit command, with a forced backup first. |
 
-Key decisions that apply from today:
-
-- **Standard JSON is the source of truth** (not Excel, and not even Postgres —
-  Postgres is the queried materialization). See [STANDARD_JSON.md](STANDARD_JSON.md).
-- **Sync becomes a service**: the watcher moves into the API process (or a small
-  worker) so triggers are file change, scheduled, or `POST /api/sync`.
-- **React + Node + Postgres** is the agreed stack — everything added so far
-  (ESM, `pg`, JSON outputs) is forward-compatible with it.
-- **Geo queries** can use PostGIS later; for now `lat`/`lon` columns + an index
-  are enough.
-- **The AI layer is provider-independent**; today Groq, tomorrow any provider.
+**Verification (Phase 1):** 146 source KMZ → 147 unique properties, 0 parse
+failures, 2 duplicates removed, 147 rows in PostgreSQL, 147 rows appended to the
+Excel copy (rows 27–170, all 6 sheets preserved).
 
 ---
 
-## 3. Data flow in detail (current)
+## 4. The REST API (apps/api)
 
-### Stage 1 — extract
-1. Read every `.kmz` in `SOURCE_KMZ_DIR`.
-2. Unzip, find the `.kml`, parse to `{ name, description, lon, lat, alt, lookAt }`.
-3. `parseAreaFromName(name)`: extract area from the file name, e.g.
-   `150م` → 150, `1 هكتار` → 10 000, Arabic-Indic digits `۱۵۰م` → 150.
-4. Dedupe:
-   - Group by `areaM2 @ lat,lon` (coords rounded to 5 decimals).
-   - Within a group, group again by normalized Arabic description.
-   - Keep the shortest filename as representative; the rest are "removed".
-5. Sort by area, write `properties.json`.
+Express server on `http://localhost:3000` (run with `npm run api`). Thin adapter
+over the engine (D3).
 
-### Stage 2 — AI
-1. For each property, call Groq with the system prompt + `NAME:`/`DESCRIPTION:`.
-2. Parse the JSON response into `{ property_type, status, location, area_m2,
-   price_in_million, price_per_meter, price_note, owner_name, phone, notes }`.
-3. Cache by `sourceFile@placemarkIndex` so re-runs only pay for new rows.
-4. Throttle between calls (`pacingDelayMs`), retry 429 with exponential backoff.
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/health` | Liveness + DB check |
+| GET | `/api/config` | Non-secret runtime config |
+| GET | `/api/status` | Current / last pipeline job state |
+| POST | `/api/pipeline` | Trigger `extract → ai → db → fill` (202; 409 if already running) |
+| GET | `/api/pipeline/events` | SSE: replayed history + live progress events |
+| GET | `/api/properties` | Property catalog from PostgreSQL |
 
-### Stage 1b — DB load
-1. Delete rows whose `source_file` is no longer in the current JSON.
-2. Upsert every property on `(source_file, placemark_idx)`.
-3. Compute `price` (DA) from AI values (see `DATA_MODEL.md`).
+> v0.4 adds the **job-based API** (uploads, excel inspect/mapping, jobs, draft,
+> apply, watch) — see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §11.
 
-### Stage 2b — Excel fill
-1. Copy the template workbook.
-2. Find the first empty row after the real data (starts at row 27).
-3. For each AI-enriched property, fill columns A–N (see `DATA_MODEL.md`).
-4. Write to `output/excel/..._filled.xlsx`.
+---
+
+## 5. The live watcher
+
+`packages/engine/src/watch.js` (CLI: `npm run watch`) watches `SOURCE_KMZ_DIR`.
+Any `.kmz` **added or removed** triggers a full re-sync after a 1.5 s debounce,
+guarded against overlapping runs, logs to `output/watcher.log`.
+
+In v0.4 the watcher becomes a **WatchService** (server-side, folder + single-file,
+start/stop, SSE events) — the first automation trigger for the Job model.
+
+---
+
+## 6. Current monorepo layout
+
+```
+packages/engine/src/   # orchestrator, stages, extractor, kmz, watch, config, events, cli
+packages/ai/src/       # provider (interface), groq, index
+packages/excel/src/    # fill, mapping, price, index
+packages/database/src/ # client, index
+packages/shared/src/   # normalize, price, standard, index
+apps/api/              # Express REST API + SSE
+apps/web/              # React + Vite frontend (v0.4 UI, dark premium theme)
+docs/                  # this documentation suite
+output/                # generated artifacts (git-ignored)
+```
 
 ---
 

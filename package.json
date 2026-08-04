@@ -17,6 +17,9 @@
     "pipeline": "node packages/engine/src/cli.js pipeline",
     "watch": "node packages/engine/src/cli.js watch",
     "api": "node apps/api/src/server.js",
+    "dev": "npm -w @terraflow/web run dev",
+    "build": "npm -w @terraflow/web run build",
+    "preview": "npm -w @terraflow/web run preview",
     "test": "node --test \"packages/*/test/**/*.test.js\""
   }
 }

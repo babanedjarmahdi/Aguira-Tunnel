@@ -1,3 +1,4 @@
+import path from 'path';
 import { extractKmlFromKmz, parseKml, parseAreaFromName, normalizeText, readKmzFiles } from './kmz.js';
 
 function stripDuplicateWhitespace(text) {
@@ -13,11 +14,12 @@ function coordsKey(entry) {
   return `${entry.lat.toFixed(prec)},${entry.lon.toFixed(prec)}`;
 }
 
-export function extractAll(sourceDir) {
+// Extract + dedupe a given list of KMZ files.
+export function extractFromFiles(fileList) {
   const parsedFiles = [];
   const failures = [];
 
-  for (const file of readKmzFiles(sourceDir)) {
+  for (const file of fileList) {
     try {
       const kml = extractKmlFromKmz(file.path);
       const parsed = parseKml(kml);
@@ -81,4 +83,12 @@ export function extractAll(sourceDir) {
   const json = deduped.map((d) => d.entry);
 
   return { properties: json, removed, failures };
+}
+
+export function extractAll(sourceDir) {
+  return extractFromFiles(readKmzFiles(sourceDir));
+}
+
+export function extractFile(filePath) {
+  return extractFromFiles([{ path: filePath, name: path.basename(filePath) }]);
 }

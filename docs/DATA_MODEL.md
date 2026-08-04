@@ -3,6 +3,13 @@
 All the conventions that make TerraFlow's data deterministic. Every stage of the
 pipeline relies on these rules, and the future API/web app must keep them.
 
+> **Workflow framing.** These tables and conventions serve the first workflow
+> (KMZ → AI → Excel, record type *Property*). TerraFlow is a workflow engine:
+> every execution is a **Job** (see §8), the schema is workspace-aware from v0.4
+> (reserved `workspace_id` / `workflow_id` columns), and future workflows add
+> their own record tables — see [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §7
+> and §10.
+
 ---
 
 ## 1. PostgreSQL schema (`schema.sql`)
@@ -35,6 +42,10 @@ Table **`properties`** — one row per property.
 - `UNIQUE (source_file, placemark_idx)` — the dedupe identity.
 - `INDEX (name)`, `INDEX (lat, lon)` — lookup and geo.
 - `pgcrypto` extension for `gen_random_uuid()`.
+
+> The `jobs` table (every run's history — §8) and reserved `workspace_id` /
+> `workflow_id` columns arrive with the v0.4 workflow MVP. See
+> [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §10.
 
 ---
 
@@ -192,6 +203,41 @@ a copy, because the original is frequently open/locked in Excel (lock file
 
 ### `output/json/properties_ai.json` (Stage 2)
 Same as above with `ai` (see §5) and optionally `aiError` for failures.
+
+---
+
+## 8. Jobs — the run history model (v0.4+)
+
+Every execution of a workflow is a **Job** — the history of the system, reused by
+future TerraFlow products (CRM, Cloud Dashboard). Persisted to
+`output/jobs/*.json` (and, from v0.4+, the `jobs` table).
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | int / string | Stable, human-readable (`Job #27`) |
+| `workflowType` | string | e.g. `kmz-ai-excel` |
+| `status` | string | `queued` · `running` · `completed` · `failed` · `canceled` |
+| `startedAt` / `finishedAt` | ISO string | run window |
+| `durationMs` | int | elapsed |
+| `processedFiles` | int | input files read |
+| `recordsCreated` / `recordsUpdated` / `recordsSkipped` | int | outcome counts |
+| `warnings` / `errors` | int | counts from the run |
+| `log` | array | structured execution events |
+
+Reserved for the workspace milestone (v0.7): `workspaceId`, `workflowId`,
+`watchId`.
+
+### Safe execution states (draft → preview → apply)
+
+A Job moves through the safety model in [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §9.3:
+
+```
+run → generate draft → preview changes → user review → apply changes → update destination
+```
+
+Drafts (the computed, not-yet-applied writes) live under `output/drafts/` until
+the user applies or discards them. The destination is **never** modified before
+the apply step (D13).
 
 ---
 

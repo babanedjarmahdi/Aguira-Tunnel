@@ -83,7 +83,7 @@ const cmds = {
 
   watch: async (opts) => {
     const { runWatcher } = await import('./watch.js');
-    runWatcher({ cliPath: __dirname });
+    runWatcher({ emitter: opts.emitter });
   },
 };
 

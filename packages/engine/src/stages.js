@@ -1,18 +1,32 @@
 import fs from 'fs';
 import path from 'path';
-import { extractAll } from './extractor.js';
+import { extractAll, extractFromFiles } from './extractor.js';
 import { createProvider } from '@terraflow/ai';
-import { loadFromJsonFiles } from '@terraflow/database';
+import { loadFromDisk } from '@terraflow/database';
 import { fillCopy, fillInPlace } from '@terraflow/excel';
-import { JSON_FILE, AI_FILE, REPORT_FILE, OUTPUT_JSON_DIR, EXCEL_OUT_DIR } from './config.js';
-import { emitLog, emitProgress } from './events.js';
+import { EXCEL_OUT_DIR } from './config.js';
+import { emitLog } from './events.js';
+
+// Each stage receives { config, emitter, ctx }. `ctx` carries the job-scoped
+// file paths and the input source so jobs never clobber each other:
+//   ctx.inputFiles     -> array of { path, name } (uploaded KMZ list)
+//   ctx.inputSourceDir -> directory to scan for .kmz
+//   ctx.jsonPath       -> job properties.json
+//   ctx.aiPath         -> job properties_ai.json
+//   ctx.reportPath     -> job dedupe report
+// When no job context exists (plain CLI), orchestrator.js supplies defaults.
 
 // ---- Stage 1: extract ----
 // Port of src/scripts/stage1_extract.js (behavior unchanged).
-export async function extractStage({ config, emitter }) {
-  const { properties, removed, failures } = extractAll(config.sourceKmzDir);
-  fs.mkdirSync(OUTPUT_JSON_DIR, { recursive: true });
-  fs.writeFileSync(JSON_FILE, JSON.stringify(properties, null, 2), 'utf8');
+export async function extractStage({ config, emitter, ctx }) {
+  const { properties, removed, failures } = ctx.inputSourceDir
+    ? extractAll(ctx.inputSourceDir)
+    : ctx.inputFiles
+      ? extractFromFiles(ctx.inputFiles)
+      : extractAll(config.sourceKmzDir);
+
+  fs.mkdirSync(path.dirname(ctx.jsonPath), { recursive: true });
+  fs.writeFileSync(ctx.jsonPath, JSON.stringify(properties, null, 2), 'utf8');
 
   let copied = 0;
   if (config.doneKmzDir) {
@@ -34,7 +48,7 @@ export async function extractStage({ config, emitter }) {
   }
 
   const lines = [];
-  lines.push(`Source dir: ${config.sourceKmzDir}`);
+  lines.push(`Source dir: ${ctx.inputSourceDir || config.sourceKmzDir}`);
   lines.push(`Total KMZ scanned: ${removed.length + properties.length + failures.length}`);
   lines.push(`Parse failures: ${failures.length}`);
   lines.push(`Unique properties: ${properties.length}`);
@@ -50,24 +64,24 @@ export async function extractStage({ config, emitter }) {
   for (const f of failures) {
     lines.push(`[failed] ${f.file}: ${f.reason}`);
   }
-  fs.writeFileSync(REPORT_FILE, lines.join('\n'), 'utf8');
+  fs.writeFileSync(ctx.reportPath, lines.join('\n'), 'utf8');
   for (const l of lines) emitLog(emitter, 'info', l);
-  emitLog(emitter, 'info', `\nJSON written: ${JSON_FILE}`);
+  emitLog(emitter, 'info', `\nJSON written: ${ctx.jsonPath}`);
 
-  return { properties, removed, failures, report: REPORT_FILE, output: JSON_FILE, copied };
+  return { properties, removed, failures, report: ctx.reportPath, output: ctx.jsonPath, copied };
 }
 
 // ---- Stage 2: AI enrichment ----
 // Port of src/scripts/stage2_ai.js (resume-safe, incremental, paced).
-export async function aiStage({ config, emitter }) {
+export async function aiStage({ config, emitter, ctx }) {
   if (!config.ai.apiKey) throw new Error('GROQ_API_KEY not set in .env');
-  const data = JSON.parse(fs.readFileSync(JSON_FILE, 'utf8'));
+  const data = JSON.parse(fs.readFileSync(ctx.jsonPath, 'utf8'));
   emitLog(emitter, 'info', `Extracting AI fields for ${data.length} properties...`);
 
   let previous = [];
-  if (fs.existsSync(AI_FILE)) {
+  if (fs.existsSync(ctx.aiPath)) {
     try {
-      previous = JSON.parse(fs.readFileSync(AI_FILE, 'utf8'));
+      previous = JSON.parse(fs.readFileSync(ctx.aiPath, 'utf8'));
       emitLog(emitter, 'info', `Found previous run with ${previous.length} entries - resuming.`);
     } catch {
       previous = [];
@@ -101,34 +115,34 @@ export async function aiStage({ config, emitter }) {
       failures.push({ sourceFile: entry.sourceFile, error: e.message });
       emitLog(emitter, 'error', `[FAIL] ${label}: ${e.message}`);
     }
-    fs.writeFileSync(AI_FILE, JSON.stringify(results, null, 2), 'utf8');
+    fs.writeFileSync(ctx.aiPath, JSON.stringify(results, null, 2), 'utf8');
     await new Promise((r) => setTimeout(r, provider.pacingMs()));
   }
 
-  fs.writeFileSync(AI_FILE, JSON.stringify(results, null, 2), 'utf8');
+  fs.writeFileSync(ctx.aiPath, JSON.stringify(results, null, 2), 'utf8');
   emitLog(emitter, 'info', `\nDone. OK: ${ok}, Failed: ${failures.length}`);
-  emitLog(emitter, 'info', `Output: ${AI_FILE}`);
+  emitLog(emitter, 'info', `Output: ${ctx.aiPath}`);
   if (failures.length) {
     emitLog(emitter, 'warn', '\nFailures:');
     failures.forEach((f) => emitLog(emitter, 'warn', `  - ${f.sourceFile}: ${f.error}`));
   }
 
-  return { results, ok, failed: failures.length, output: AI_FILE };
+  return { results, ok, failed: failures.length, output: ctx.aiPath };
 }
 
 // ---- Stage 3: database sync ----
 // Port of src/scripts/stage1_loaddb.js (full sync + upsert).
-export async function dbStage({ config, emitter }) {
+export async function dbStage({ config, emitter, ctx }) {
   emitLog(emitter, 'info', 'Loading properties into PostgreSQL...');
-  const count = await loadFromJsonFiles(process.cwd(), config.db);
+  const count = await loadFromDisk({ jsonPath: ctx.jsonPath, aiPath: ctx.aiPath, env: config.db });
   emitLog(emitter, 'info', `Done. Total rows in DB: ${count}`);
   return { count };
 }
 
 // ---- Stage 4: Excel copy fill ----
 // Port of src/scripts/stage2_fill.js (never touches the template).
-export async function fillStage({ config, emitter }) {
-  const data = JSON.parse(fs.readFileSync(AI_FILE, 'utf8')).filter((d) => d.ai);
+export async function fillStage({ config, emitter, ctx }) {
+  const data = JSON.parse(fs.readFileSync(ctx.aiPath, 'utf8')).filter((d) => d.ai);
   emitLog(emitter, 'info', `Writing ${data.length} properties to Excel copy...`);
   fs.mkdirSync(EXCEL_OUT_DIR, { recursive: true });
   const result = await fillCopy({
@@ -143,8 +157,8 @@ export async function fillStage({ config, emitter }) {
 
 // ---- In-place fill (writes into the ORIGINAL Excel, with forced backup) ----
 // Port of src/scripts/fill_original.mjs.
-export async function fillOriginalStage({ config, emitter }) {
-  const data = JSON.parse(fs.readFileSync(AI_FILE, 'utf8')).filter((d) => d.ai);
+export async function fillOriginalStage({ config, emitter, ctx }) {
+  const data = JSON.parse(fs.readFileSync(ctx.aiPath, 'utf8')).filter((d) => d.ai);
   emitLog(emitter, 'info', `Filling ${data.length} properties into ORIGINAL: ${config.originalPath}`);
   fs.mkdirSync(EXCEL_OUT_DIR, { recursive: true });
   const result = await fillInPlace({

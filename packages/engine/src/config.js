@@ -11,6 +11,9 @@ export const AI_FILE = path.join(OUTPUT_JSON_DIR, 'properties_ai.json');
 export const REPORT_FILE = path.join(OUTPUT_JSON_DIR, 'dedupe_report.txt');
 export const EXCEL_OUT_DIR = path.join(ROOT, 'output', 'excel');
 export const BACKUP_DIR = path.join(ROOT, 'output', 'backup');
+export const JOBS_DIR = path.join(ROOT, 'output', 'jobs');
+export const DRAFTS_DIR = path.join(ROOT, 'output', 'drafts');
+export const UPLOADS_DIR = path.join(ROOT, 'output', 'uploads');
 
 // Env-configurable paths. Defaults replicate the original scripts.
 export function loadConfig(env = process.env) {

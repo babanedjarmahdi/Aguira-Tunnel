@@ -32,10 +32,13 @@ Copy-Item .env.example .env
 docker compose up -d
 
 # 4. Run the pipeline
-npm.cmd run stage1:extract
-npm.cmd run stage2:parse-ai
-npm.cmd run stage1:loaddb
-npm.cmd run stage2:fill
+npm.cmd run extract    # kmz → output/json/properties.json (+ dedupe report)
+npm.cmd run ai         # + Groq AI → output/json/properties_ai.json
+npm.cmd run loaddb     # → PostgreSQL (upsert + prune stale rows)
+npm.cmd run fill       # → output/excel/..._filled.xlsx (copy of template)
+
+# 5. Or run everything in one shot
+npm.cmd run pipeline   # extract + ai + loaddb + fill
 ```
 
 ### `.env` reference
@@ -58,14 +61,23 @@ npm.cmd run stage2:fill
 ## 3. Running the pipeline
 
 ```powershell
-npm.cmd run stage1:extract    # kmz → output/json/properties.json (+ dedupe report)
-npm.cmd run stage2:parse-ai   # + Groq AI → output/json/properties_ai.json
-npm.cmd run stage1:loaddb     # → PostgreSQL (upsert + prune stale rows)
-npm.cmd run stage2:fill       # → output/excel/..._filled.xlsx (copy of template)
+npm.cmd run extract    # kmz → output/json/properties.json (+ dedupe report)
+npm.cmd run ai         # + Groq AI → output/json/properties_ai.json
+npm.cmd run loaddb     # → PostgreSQL (upsert + prune stale rows)
+npm.cmd run fill       # → output/excel/..._filled.xlsx (copy of template)
+npm.cmd run pipeline   # extract + ai + loaddb + fill, in one shot
 ```
 
-These are also wired in `package.json` scripts. Order matters (each stage reads
-the previous stage's output).
+These are wired in `package.json` scripts. Order matters (each stage reads the
+previous stage's output), which is what `pipeline` enforces.
+
+### Fill modes
+
+- `npm.cmd run fill` — copy-fill: writes a **new** file in `output/excel/`, the
+  original template is never touched (D2).
+- `npm.cmd run fill:original` — in-place fill: writes as-written prices back into
+  the customer's original workbook **with a forced backup first** (D7). Use it
+  deliberately, prefer `fill` otherwise.
 
 ---
 
@@ -83,12 +95,29 @@ npm.cmd run watch
 - Skips a sync if one is already running.
 - **Stop it with Ctrl+C** before doing a manual pipeline run to avoid conflicts.
 
-> Note: there is currently no `watch` script in `package.json` — run it directly
-> if needed: `node src/scripts/watch.js`.
+> v0.4 turns this into a server-side **WatchService** (folder + single-file,
+> start/stop via API, SSE events, Jobs per run) — see
+> [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §9 and §11.
 
 ---
 
-## 5. Outputs
+## 5. API and web UI
+
+```powershell
+npm.cmd run api    # REST API + SSE on http://localhost:3000 (needs Postgres up)
+npm.cmd run dev    # Vite dev server for the web app on http://localhost:5173
+npm.cmd run build  # production build of the web app
+npm.cmd run preview
+```
+
+Endpoints today: `GET /api/health | /api/config | /api/status | /api/properties`,
+`GET /api/pipeline/events` (SSE), `POST /api/pipeline`. The v0.4 job-based API
+(uploads, excel inspect/mapping, jobs, draft, apply, watch) is being built on
+top of the same engine.
+
+---
+
+## 6. Outputs
 
 | Path | Content |
 |---|---|
@@ -96,13 +125,16 @@ npm.cmd run watch
 | `output/json/properties_ai.json` | Same, with `ai` enrichment (147) |
 | `output/json/dedupe_report.txt` | What was removed as duplicate and why |
 | `output/excel/CRM_GPT_Immobilier_Employees_V8_10_2_2_filled.xlsx` | Filled workbook copy |
+| `output/drafts/` | Not-yet-applied draft workbooks (v0.4 safe execution) |
+| `output/jobs/` | Persisted Job records (v0.4 run history) |
+| `output/uploads/<jobId>/` | Staged input files (v0.4) |
 | `output/watcher.log` | Watcher activity |
 | `output/*.log` | Error logs (`db_load_error.log`, `excel_fill_error.log`) |
 | `C:\Users\USER\Desktop\TerraFlow_Filled.xlsx` | Convenience copy of the filled workbook |
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 ### Docker daemon offline / ECONNREFUSED on localhost:5432
 
