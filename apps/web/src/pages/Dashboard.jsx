@@ -1,12 +1,14 @@
-import { ArrowRight, UploadCloud, Sparkles, FileSpreadsheet, Play, MapPin, FileText, Database, AlertTriangle } from 'lucide-react';
+import { ArrowRight, UploadCloud, Sparkles, FileSpreadsheet, Play, MapPin, FileText, Database, AlertTriangle, Eye, ChevronRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getStatus, usePoll, usePipelineEvents } from '../api';
+import { getStatus, getWatchers, usePoll, usePipelineEvents } from '../api';
 import { Card, Stat, Badge, Button, Empty, Progress, Dot } from '../components/ui';
 import PipelineVisual, { STAGES } from '../components/PipelineVisual';
 
 export default function Dashboard({ setStatusMsg }) {
   const nav = useNavigate();
   const { data: status, refresh } = usePoll(getStatus, 3000);
+  const { data: watchers } = usePoll(getWatchers, 4000);
+  const wlist = watchers || [];
   const st = status || {};
   const stats = st.stats || {};
   const last = st.lastJob;
@@ -74,6 +76,8 @@ export default function Dashboard({ setStatusMsg }) {
         <Card pad title="Quick actions" sub="Common starting points">
           <div className="flex-col gap-8">
             <QuickAction icon={UploadCloud} title="Import a KMZ file" text="Run the full extract → AI → Excel pipeline" onClick={() => nav('/import')} />
+            <QuickAction icon={Eye} title="Watch a folder" text="Create a watch workflow — folder, destination and stages" onClick={() => nav('/watchers')} />
+            <QuickAction icon={Play} title="Manage workflows" text="Saved pipelines: input folder, template and AI model" onClick={() => nav('/workflows')} />
             <QuickAction icon={Sparkles} title="Tune AI configuration" text="Provider, model, prompt and pacing" onClick={() => nav('/ai')} />
             <QuickAction icon={FileSpreadsheet} title="Manage Excel templates" text="Start row, sheet, columns and notes" onClick={() => nav('/templates')} />
           </div>
@@ -81,9 +85,12 @@ export default function Dashboard({ setStatusMsg }) {
         <Card pad title="Recent activity" sub="Latest pipeline runs">
           {last ? (
             <div className="flex-col gap-8">
-              <ActivityRow icon={Play} title={`Run ${last.jobId || ''}`.trim() || 'Last run'}
-                detail={`${last.stagesDone || 0}/5 stages · finished ${last.finishedAt ? new Date(last.finishedAt).toLocaleString() : '—'}`}
-                tone={last.status === 'error' ? 'err' : 'ok'} />
+              <div className="row" style={{ cursor: 'pointer' }} onClick={() => nav('/jobs')}>
+                <ActivityRow icon={Play} title={`Run ${last.jobId || ''}`.trim() || 'Last run'}
+                  detail={`${last.stagesDone || 0}/5 stages · finished ${last.finishedAt ? new Date(last.finishedAt).toLocaleString() : '—'}`}
+                  tone={last.status === 'error' ? 'err' : 'ok'} />
+                <ChevronRight size={15} style={{ color: 'var(--text-3)' }} />
+              </div>
               {last.error && (
                 <div className="flex gap-8 text-sm" style={{ color: 'var(--error)' }}>
                   <AlertTriangle size={14} /> {last.error}
@@ -96,6 +103,39 @@ export default function Dashboard({ setStatusMsg }) {
           )}
         </Card>
       </div>
+
+      <Card pad className="mt-24" title="Watch workflows" sub="Click one to open and manage it">
+        {wlist.length ? (
+          <div className="flex-col gap-8">
+            {wlist.map((w) => (
+              <div key={w.id} className="row" style={{ cursor: 'pointer' }} onClick={() => nav('/watchers', { state: { editWatcherId: w.id } })}>
+                <span className="avatar" style={{ background: w.runtime?.watching ? 'rgba(52,211,153,0.12)' : 'var(--surface-2)' }}>
+                  <Eye size={15} />
+                </span>
+                <div className="flex-col" style={{ flex: 1 }}>
+                  <div className="flex gap-8 align-center">
+                    <b style={{ fontSize: 13.5 }}>{w.name}</b>
+                    <Badge tone={w.runtime?.watching ? 'ok' : w.runtime?.enabled ? 'info' : 'warn'}>
+                      <Dot tone={w.runtime?.watching ? 'ok' : w.runtime?.enabled ? 'info' : 'err'} />
+                      {w.runtime?.watching ? 'Watching' : w.runtime?.enabled ? 'Stopped' : 'Off'}
+                    </Badge>
+                  </div>
+                  <span className="muted text-sm mono">{w.path || '—'}</span>
+                  <span className="muted text-sm">
+                    {w.steps?.join(' · ')}
+                    {w.mode === 'original' ? ' · modify existing' : ' · create new file'}
+                    {w.templateId ? ' · template' : w.targetPath ? ' · file' : ' · no destination'}
+                  </span>
+                </div>
+                <ChevronRight size={15} style={{ color: 'var(--text-3)' }} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty icon={Eye} title="No watch workflows yet" text="Create one from the Watch folder mode in the import wizard, or directly here."
+            action={<Button variant="primary" size="sm" icon={Eye} onClick={() => nav('/watchers')}>New watch workflow</Button>} />
+        )}
+      </Card>
     </div>
   );
 }

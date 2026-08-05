@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye, Plus, Play, Square, RefreshCw, Trash2, X, FolderTree, File, Pencil, FolderOpen } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   getWatchers, createWatcher, updateWatcher, deleteWatcher,
   startWatcher, stopWatcher, syncWatcher, clearWatcherHistory, usePoll,
@@ -29,6 +29,7 @@ const emptyForm = () => ({
 export default function Watchers() {
   const toast = useToast();
   const nav = useNavigate();
+  const loc = useLocation();
   const { data, refresh } = usePoll(getWatchers, 4000);
   const list = data || [];
 
@@ -44,6 +45,19 @@ export default function Watchers() {
   const [renameVal, setRenameVal] = useState('');
   const [showHistory, setShowHistory] = useState(null);
   const [browse, setBrowse] = useState(null);
+  const deepLink = useRef(null);
+
+  useEffect(() => {
+    if (loc.state?.editWatcherId && deepLink.current === null) deepLink.current = Number(loc.state.editWatcherId);
+  }, [loc.state]);
+
+  useEffect(() => {
+    if (deepLink.current && list.length) {
+      const w = list.find((x) => x.id === deepLink.current);
+      if (w) { openEdit(w); toast(`Editing ${w.name}`); }
+      deepLink.current = null;
+    }
+  }, [list, toast]);
 
   useEffect(() => {
     getTemplates().then((r) => setTemplates(r.templates)).catch(() => {});
