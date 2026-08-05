@@ -311,8 +311,8 @@ export default function ImportWizard() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">New import job</h1>
-          <p className="page-sub">Upload a KMZ export, review the Excel destination, run the pipeline, review the draft, then apply.</p>
+          <h1 className="page-title">Import workflow</h1>
+          <p className="page-sub">An import workflow runs once: upload a KMZ export, review the Excel destination, run the pipeline, review the draft, then apply.</p>
         </div>
         <Button variant="ghost" icon={RefreshCcw} onClick={reset}>Reset</Button>
       </div>
@@ -382,7 +382,7 @@ export default function ImportWizard() {
                     {activeWatcher?.runtime?.watching
                       ? <Button variant="primary" icon={Square} onClick={doWatchStop} loading={watchToggling}>Stop watching</Button>
                       : <Button variant="primary" icon={Radar} onClick={doWatchStart} disabled={!activeWatcher || !activeWatcher.path || (!activeWatcher.templateId && !activeWatcher.targetPath)} loading={watchToggling}>Start watching</Button>}
-                    <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/watchers')}>Manage watchers</Button>
+                    <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/workflows')}>Manage workflows</Button>
                     <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/jobs')}>Open Jobs</Button>
                   </div>
 
@@ -443,7 +443,7 @@ export default function ImportWizard() {
                   <div className="flex-col gap-4" style={{ paddingLeft: 18 }}>
                     <li className="muted text-sm">You keep adding .kmz files to the same folder over time.</li>
                     <li className="muted text-sm">You want the destination re-synced automatically, hands-off.</li>
-                    <li className="muted text-sm">Each watcher is a managed item on the Watchers page — pick the folder, the file to fill and the stages.</li>
+                    <li className="muted text-sm">Each watcher is a watch workflow — it lives on the Workflows page with its own Start / Stop / Edit controls.</li>
                     <li className="muted text-sm">One-shot imports still use Single file / Whole folder above.</li>
                   </div>
                 </Card>

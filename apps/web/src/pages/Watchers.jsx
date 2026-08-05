@@ -188,8 +188,8 @@ export default function Watchers() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">Watchers</h1>
-          <p className="page-sub">Managed watch items: a folder or single file, debounced, running the watcher's own workflow on every change. Run-on-startup resumes them after a restart.</p>
+          <h1 className="page-title">Watch workflows</h1>
+          <p className="page-sub">A watch workflow runs in the background: a folder or single file, debounced, running its own stages and destination on every change. Run-on-startup resumes them after a restart.</p>
         </div>
         <Button variant="primary" icon={Plus} onClick={() => (open ? setOpen(false) : openCreate())}>{open ? 'Close' : 'New watcher'}</Button>
       </div>

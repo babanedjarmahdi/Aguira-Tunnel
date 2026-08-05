@@ -254,8 +254,13 @@ code, pre, .mono { font-family: var(--mono); }
 .hero-actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
 .hero-meta { display: flex; gap: 26px; margin-top: 24px; flex-wrap: wrap; }
 .hero-workflows { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line, rgba(255,255,255,0.08)); }
+.hero-running {
+  margin-top: 24px; padding: 12px 14px; border-radius: 12px;
+  background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.35);
+}
 .hero-wf { cursor: pointer; min-width: 230px; padding: 10px 12px; transition: border-color 0.15s, transform 0.15s; }
 .hero-wf:hover { border-color: var(--accent, #22d3ee); transform: translateY(-1px); }
+.hero-wf.is-running { border-color: var(--accent, #22d3ee); background: rgba(34,211,238,0.08); }
 .hero-meta .m { font-size: 12px; color: var(--text-3); }
 .hero-meta .m b { display: block; font-size: 19px; font-weight: 680; color: var(--text); letter-spacing: -0.02em; }
 
@@ -268,6 +273,11 @@ code, pre, .mono { font-family: var(--mono); }
   padding: 9px 15px; border: 1px solid transparent; transition: all 0.16s ease;
   white-space: nowrap; user-select: none;
 }
+button.link-like {
+  background: none; border: none; padding: 0; color: var(--accent, #22d3ee);
+  cursor: pointer; font-size: inherit; display: inline-flex; align-items: center;
+}
+button.link-like:hover { text-decoration: underline; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn svg { width: 15px; height: 15px; }
 .btn.primary {

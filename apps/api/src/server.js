@@ -480,6 +480,15 @@ app.get('/api/jobs/:id/download', (req, res) => {
 // ---- Workflows -----------------------------------------------------------
 app.get('/api/workflows', (req, res) => res.json(listWorkflows()));
 
+// Unified catalog: every workflow (import = one-shot, watch = background), type-tagged.
+app.get('/api/workflows/all', (req, res) => {
+  const imports = listWorkflows().map((w) => ({ ...w, type: 'import' }));
+  const watches = watcherManager.statusList().map((w) => ({ ...w, type: 'watch' }));
+  const all = [...imports, ...watches].sort((a, b) =>
+    String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+  res.json(all);
+});
+
 app.post('/api/workflows', (req, res) => {
   const body = req.body || {};
   try {

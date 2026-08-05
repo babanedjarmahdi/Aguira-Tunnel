@@ -1,17 +1,42 @@
-import { ArrowRight, UploadCloud, Sparkles, FileSpreadsheet, Play, MapPin, FileText, Database, AlertTriangle, Eye, ChevronRight, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowRight, UploadCloud, Sparkles, FileSpreadsheet, Play, MapPin, FileText, Database, AlertTriangle, Eye, ChevronRight, Plus, Workflow as WorkflowIcon, Activity } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getStatus, getWatchers, usePoll, usePipelineEvents } from '../api';
+import { getStatus, getAllWorkflows, getJob, usePoll, usePipelineEvents } from '../api';
 import { Card, Stat, Badge, Button, Empty, Progress, Dot } from '../components/ui';
 import PipelineVisual, { STAGES } from '../components/PipelineVisual';
+import NewWorkflowChooser from '../components/NewWorkflowChooser';
+
+const tone = (s) => (s === 'completed' ? 'ok' : s === 'failed' ? 'err' : s === 'running' ? 'info' : 'warn');
 
 export default function Dashboard({ setStatusMsg }) {
   const nav = useNavigate();
   const { data: status, refresh } = usePoll(getStatus, 3000);
-  const { data: watchers } = usePoll(getWatchers, 4000);
-  const wlist = watchers || [];
+  const { data: workflows } = usePoll(getAllWorkflows, 4000);
+  const wlist = workflows || [];
+  const [showNew, setShowNew] = useState(false);
+  const [runningJob, setRunningJob] = useState(null);
   const st = status || {};
   const stats = st.stats || {};
   const last = st.lastJob;
+
+  useEffect(() => {
+    if (st.running && st.currentJobId) {
+      let alive = true;
+      const tick = () => getJob(st.currentJobId).then((j) => { if (alive) setRunningJob(j); }).catch(() => {});
+      tick();
+      const t = setInterval(tick, 3000);
+      return () => { alive = false; clearInterval(t); };
+    }
+    setRunningJob(null);
+    return undefined;
+  }, [st.running, st.currentJobId]);
+
+  const runningFlow = runningJob
+    ? (runningJob.workflowId ? wlist.find((w) => w.type === 'import' && w.id === runningJob.workflowId)
+        : wlist.find((w) => w.type === 'watch' && w.id === runningJob.watcherId)) || null
+    : null;
+  const flowName = runningFlow ? runningFlow.name : '';
+  const running = !!st.running;
 
   usePipelineEvents((ev) => {
     if (ev.type === 'stage:start') setStatusMsg(`Running stage ${ev.payload?.stage}…`);
@@ -22,23 +47,20 @@ export default function Dashboard({ setStatusMsg }) {
     if (ev.type === 'pipeline:error') setStatusMsg(`Pipeline error: ${ev.payload?.error || ''}`);
   });
 
-  const running = !!st.running;
-
   return (
     <div className="page">
       <section className="hero">
         <span className="hero-eyebrow"><Dot tone="info" /> TerraFlow Engine</span>
-        <h1 className="hero-title">{running ? 'Workflow in progress.' : 'Ready to process your first workflow.'}</h1>
+        <h1 className="hero-title">{running ? 'Workflow in progress.' : 'Your workflows, one dashboard.'}</h1>
         <p className="hero-sub">
-          Import a KMZ export, let AI structure the listings, map everything into Excel, and ship a clean workbook — in one automated pass.
+          Workflows are the unit of work. Import workflows run once — a KMZ export becomes a filled Excel workbook.
+          Watch workflows run in the background — a folder is re-synced automatically. Both share the same pipeline.
         </p>
         <div className="hero-actions">
-          <Button variant="primary" size="lg" icon={running ? undefined : Play} onClick={() => nav('/import')} disabled={running}>
-            {running ? 'Pipeline running…' : 'New import'}
+          <Button variant="primary" size="lg" icon={running ? undefined : Play} onClick={() => setShowNew(true)} disabled={running}>
+            {running ? 'Pipeline running…' : 'Start a new workflow'}
           </Button>
-          <Button variant="ghost" size="lg" icon={Plus} onClick={() => nav('/watchers', { state: { createNew: true } })}>
-            Start new workflow
-          </Button>
+          <Button variant="ghost" size="lg" icon={UploadCloud} onClick={() => nav('/import')}>New import</Button>
           <Button variant="ghost" size="lg" icon={FileSpreadsheet} onClick={() => nav('/templates')}>Browse templates</Button>
         </div>
         <div className="hero-meta">
@@ -47,34 +69,58 @@ export default function Dashboard({ setStatusMsg }) {
           <div className="m"><b>{stats.failed ?? 0}</b>Failures</div>
           <div className="m"><b>{stats.duplicates ?? 0}</b>Duplicates</div>
         </div>
+        {running && (
+          <div className="hero-running">
+            <div className="flex gap-8" style={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+              <span className="avatar" style={{ background: 'rgba(34,211,238,0.14)' }}><Activity size={15} /></span>
+              <div className="flex-col" style={{ minWidth: 0, flex: 1 }}>
+                <div className="flex gap-8" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <b style={{ fontSize: 14 }}>Running now{flowName ? `: ${flowName}` : ''}</b>
+                  {runningFlow && <Badge tone="info">{runningFlow.type === 'watch' ? 'watch' : 'import'}</Badge>}
+                </div>
+                <span className="muted text-sm">
+                  {st.currentStage ? <>Stage <b style={{ color: 'var(--text)' }}>{st.currentStage}</b></> : 'Starting…'}
+                  {runningFlow && <> · {runningFlow.type === 'watch' ? runningFlow.path : (runningFlow.input?.sourceDir || 'one-shot')}</>}
+                </span>
+              </div>
+              <Button variant="primary" size="sm" icon={Play} onClick={() => nav('/jobs')}>Open run</Button>
+            </div>
+            <Progress indeterminate style={{ marginTop: 10 }} />
+          </div>
+        )}
         {wlist.length > 0 && (
           <div className="hero-workflows">
             <div className="flex between">
-              <span className="hero-eyebrow" style={{ marginBottom: 0 }}><Dot tone="ok" /> Watch workflows</span>
-              <Link to="/watchers" style={{ color: 'var(--accent)', fontSize: 12.5, fontWeight: 600 }}>Manage all →</Link>
+              <span className="hero-eyebrow" style={{ marginBottom: 0 }}><Dot tone="ok" /> Workflows</span>
+              <Link to="/workflows" style={{ color: 'var(--accent)', fontSize: 12.5, fontWeight: 600 }}>Manage all →</Link>
             </div>
             <div className="flex gap-8 mt-12 flex-wrap">
-              {wlist.map((w) => (
-                <div key={w.id} className="card pad hero-wf"
-                  onClick={() => nav('/watchers', { state: { editWatcherId: w.id } })}>
-                  <div className="flex gap-8 align-center">
-                    <Eye size={14} style={{ color: w.runtime?.watching ? 'var(--ok)' : 'var(--text-3)' }} />
-                    <b style={{ fontSize: 13 }}>{w.name}</b>
-                    <Badge tone={w.runtime?.watching ? 'ok' : 'warn'}>
-                      <Dot tone={w.runtime?.watching ? 'ok' : 'err'} />
-                      {w.runtime?.watching ? 'Watching' : 'Stopped'}
-                    </Badge>
+              {wlist.slice(0, 6).map((w) => {
+                const isWatch = w.type === 'watch';
+                const watching = isWatch && w.runtime?.watching;
+                const isRunningFlow = runningFlow && runningFlow.id === w.id && runningFlow.type === w.type;
+                return (
+                  <div key={`${w.type}:${w.id}`} className={`card pad hero-wf ${isRunningFlow ? 'is-running' : ''}`}
+                    onClick={() => (isWatch ? nav('/watchers', { state: { editWatcherId: w.id } }) : nav('/workflows'))}>
+                    <div className="flex gap-8" style={{ alignItems: 'center' }}>
+                      {isWatch ? <Eye size={14} style={{ color: watching ? 'var(--ok)' : 'var(--text-3)' }} /> : <Play size={14} style={{ color: 'var(--accent)' }} />}
+                      <b style={{ fontSize: 13 }}>{w.name}</b>
+                      <Badge tone={isRunningFlow ? 'info' : isWatch ? (watching ? 'ok' : 'warn') : 'info'}>
+                        <Dot tone={isRunningFlow ? 'info' : isWatch ? (watching ? 'ok' : 'err') : 'info'} />
+                        {isRunningFlow ? 'Running…' : isWatch ? (watching ? 'Watching' : 'Stopped') : 'import'}
+                      </Badge>
+                    </div>
+                    <div className="muted text-sm mono mt-4">{isWatch ? (w.path || '—') : (w.input?.sourceDir || 'one-shot')}</div>
+                    <div className="flex gap-8" style={{ color: 'var(--accent)', marginTop: 8, fontSize: 12, fontWeight: 600, alignItems: 'center' }}>
+                      Manage <ChevronRight size={12} />
+                    </div>
                   </div>
-                  <div className="muted text-sm mono mt-4">{w.path || '—'}</div>
-                  <div className="muted text-sm mt-2">
-                    {w.steps?.join(' · ')}
-                    {w.mode === 'original' ? ' · modify existing' : ' · new file'}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
+        {showNew && <NewWorkflowChooser onClose={() => setShowNew(false)} />}
       </section>
 
       <div className="mt-24">
@@ -135,36 +181,41 @@ export default function Dashboard({ setStatusMsg }) {
         </Card>
       </div>
 
-      <Card pad className="mt-24" title="Watch workflows" sub="Click one to open and manage it">
+      <Card pad className="mt-24" title="Workflows" sub="Import (one-shot) and watch (background) — click one to manage">
         {wlist.length ? (
           <div className="flex-col gap-8">
-            {wlist.map((w) => (
-              <div key={w.id} className="row" style={{ cursor: 'pointer' }} onClick={() => nav('/watchers', { state: { editWatcherId: w.id } })}>
-                <span className="avatar" style={{ background: w.runtime?.watching ? 'rgba(52,211,153,0.12)' : 'var(--surface-2)' }}>
-                  <Eye size={15} />
-                </span>
-                <div className="flex-col" style={{ flex: 1 }}>
-                  <div className="flex gap-8 align-center">
-                    <b style={{ fontSize: 13.5 }}>{w.name}</b>
-                    <Badge tone={w.runtime?.watching ? 'ok' : w.runtime?.enabled ? 'info' : 'warn'}>
-                      <Dot tone={w.runtime?.watching ? 'ok' : w.runtime?.enabled ? 'info' : 'err'} />
-                      {w.runtime?.watching ? 'Watching' : w.runtime?.enabled ? 'Stopped' : 'Off'}
-                    </Badge>
-                  </div>
-                  <span className="muted text-sm mono">{w.path || '—'}</span>
-                  <span className="muted text-sm">
-                    {w.steps?.join(' · ')}
-                    {w.mode === 'original' ? ' · modify existing' : ' · create new file'}
-                    {w.templateId ? ' · template' : w.targetPath ? ' · file' : ' · no destination'}
+            {wlist.map((w) => {
+              const isWatch = w.type === 'watch';
+              const watching = isWatch && w.runtime?.watching;
+              return (
+                <div key={`${w.type}:${w.id}`} className="row" style={{ cursor: 'pointer' }}
+                  onClick={() => (isWatch ? nav('/watchers', { state: { editWatcherId: w.id } }) : nav('/workflows'))}>
+                  <span className="avatar" style={{ background: isWatch ? (watching ? 'rgba(52,211,153,0.12)' : 'var(--surface-2)') : 'rgba(34,211,238,0.12)' }}>
+                    {isWatch ? <Eye size={15} /> : <Play size={15} />}
                   </span>
+                  <div className="flex-col" style={{ flex: 1 }}>
+                    <div className="flex gap-8" style={{ alignItems: 'center' }}>
+                      <b style={{ fontSize: 13.5 }}>{w.name}</b>
+                      <Badge tone="info">{isWatch ? 'watch' : 'import'}</Badge>
+                      <Badge tone={isWatch ? (watching ? 'ok' : w.runtime?.enabled ? 'info' : 'warn') : (w.lastStatus ? tone(w.lastStatus) : 'info')}>
+                        <Dot tone={isWatch ? (watching ? 'ok' : w.runtime?.enabled ? 'info' : 'err') : (w.lastStatus ? tone(w.lastStatus) : 'info')} />
+                        {isWatch ? (watching ? 'Watching' : w.runtime?.enabled ? 'Stopped' : 'Off') : (w.lastStatus || 'ready')}
+                      </Badge>
+                    </div>
+                    <span className="muted text-sm mono">{isWatch ? (w.path || '—') : (w.input?.sourceDir || 'one-shot import')}</span>
+                    <span className="muted text-sm">
+                      {w.steps?.join(' · ')}
+                      {isWatch ? (w.mode === 'original' ? ' · modify existing' : ' · create new file') : ''}
+                    </span>
+                  </div>
+                  <ChevronRight size={15} style={{ color: 'var(--text-3)' }} />
                 </div>
-                <ChevronRight size={15} style={{ color: 'var(--text-3)' }} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
-          <Empty icon={Eye} title="No watch workflows yet" text="Create one from the Watch folder mode in the import wizard, or directly here."
-            action={<Button variant="primary" size="sm" icon={Eye} onClick={() => nav('/watchers')}>New watch workflow</Button>} />
+          <Empty icon={WorkflowIcon} title="No workflows yet" text="Workflows are the unit of work — import (one-shot) or watch (background)."
+            action={<Button variant="primary" size="sm" icon={Play} onClick={() => setShowNew(true)}>Start a new workflow</Button>} />
         )}
       </Card>
     </div>

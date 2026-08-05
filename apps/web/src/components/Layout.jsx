@@ -4,11 +4,11 @@ import { Dot } from './ui';
 
 export const NAV = [
   { id: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { id: '/import', label: 'Import Jobs', icon: UploadCloud },
   { id: '/workflows', label: 'Workflows', icon: Workflow },
+  { id: '/import', label: 'Import workflow', icon: UploadCloud },
+  { id: '/watchers', label: 'Watch workflows', icon: Eye, pro: true },
   { id: '/ai', label: 'AI Configuration', icon: Sparkles, pro: true },
   { id: '/templates', label: 'Excel Templates', icon: FileSpreadsheet, pro: true },
-  { id: '/watchers', label: 'Watchers', icon: Eye, pro: true },
 ];
 export const NAV_BOTTOM = [
   { id: '/settings', label: 'Settings', icon: Settings, pro: true },

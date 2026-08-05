@@ -223,14 +223,22 @@ The engine becomes a real workflow engine: Job model, safe execution
 | 2026-08-05 | **Watch workflow destination required + always visible**: creating a watcher now needs a destination — a registered template or an explicit .xlsx ("choose the destination or create a new file"); guards in the wizard (`saveWatchWorkflow`) and the Watchers page (`save`) block saving a watcher with no `templateId` and no `targetPath`. Destination/workflow editor moved **out of the collapsed `<details>`** — it now renders always-visible in the watch card ("Destination & workflow": Create new file / Modify existing file segmented, required template dropdown, explicit file path + Browse, stages checkboxes, Save watch workflow); amber notice prompts for a destination, and **Start watching is disabled until a destination is set**. Mode labels clarified ("Create new file"/"Modify existing file"); template dropdown reads "— choose a template (required) —". | `pages/ImportWizard.jsx`, `pages/Watchers.jsx` | `1ae4103` |
 | 2026-08-05 | **Dashboard surfaces watch workflows (clickable)**: new "Watch workflows" card lists every watcher (name, status badge Watching/Stopped/Off, folder path, stages + destination summary) — clicking a row navigates to `/watchers` with `state.editWatcherId`, and the Watchers page auto-opens that watcher's edit modal (deep link). "Recent activity" row is now clickable → `/jobs`; Quick actions gained "Watch a folder" → `/watchers` and "Manage workflows" → `/workflows`. Empty state offers "New watch workflow". | `pages/Dashboard.jsx`, `pages/Watchers.jsx` | `850785c` |
 | 2026-08-05 | **Hero shows watch workflows + "Start new workflow"**: the hero section now lists the watch workflows as clickable cards (name, Watching/Stopped badge, folder, stages/destination) — click opens that watcher's editor — plus a "Manage all →" link; new "Start new workflow" hero button goes to `/watchers` with `state.createNew`, which auto-opens the create form. Added `.hero-workflows`/`.hero-wf` CSS. | `pages/Dashboard.jsx`, `pages/Watchers.jsx`, `styles.css` | (this commit) |
+| 2026-08-05 | **Workflow-first reframe — the UI now treats workflows as the unit of work (Part 2, item 5 extension)**: new unified catalog `GET /api/workflows/all` merges one-shot imports + managed watch workflows, type-tagged (`import`/`watch`) and sorted by last activity; `web/api.js` gains `getAllWorkflows`. Dashboard hero rewritten ("Your workflows, one dashboard.") — "Start a new workflow" opens the new **NewWorkflowChooser** modal (Import workflow → `/import`, Watch workflow → `/watchers?createNew`); hero + Workflows card list **all** workflows with type/status badges and "Manage →" affordances; when a run is active a "Running now: \<workflow\> — stage X" banner identifies the exact running workflow (via `getJob(currentJobId)`) with an "Open run" button → `/jobs` (`.hero-running` + `.is-running` highlight CSS). **Workflows.jsx rewritten as the unified hub** (both types, per-type actions: watch → Start/Stop/Sync now/Edit/Delete, import → Run/Duplicate/Export/Delete, rename, JSON import/export, `usePoll(getAllWorkflows)`). **Jobs.jsx rewritten as "Run history"** — every run of any workflow, new clickable Workflow column (`flowLookup` for `import:<id>`/`watch:<id>`, "Open" links back to the right workflow) + Source column. **Layout nav reframed**: Workflows (now 2nd), Import workflow, Watch workflows (PRO). ImportWizard page title "Import workflow"; its watch pane reads as creating a watch workflow ("Manage workflows" link → `/workflows`, "Each watcher is a watch workflow…"). Watchers deep-link state (`createNew`, `editWatcherId`). Verified live: `/api/workflows/all` merges a created import (`[import:6]`) and a created watcher (`[watch:3]`) with type tags; build `index-CPqwsItW.js` served on :3000. | `api/server.js`, `web/api.js`, `pages/Dashboard.jsx`, `pages/Workflows.jsx`, `pages/Jobs.jsx`, `pages/ImportWizard.jsx`, `pages/Watchers.jsx`, `components/Layout.jsx`, `components/NewWorkflowChooser.jsx`, `styles.css`, docs | (this commit) |
 
 ## 3. In progress (current)
 
-- **Managed watchers** done (Part 2 item 5): persisted watchers with own
-  workflow (stages/AI/destination workbook), folder/file picker, start/stop/
-  sync, run history; Import wizard "Watch folder" linked to the managed
-  watchers as a **new-workflow creator** (pick folder → draft workflow →
-  configure → Start). Committed and pushed.
+- **Workflow-first reframe** (extending Part 2 item 5): the product now treats
+  **workflows as the unit of work** — unified catalog `/api/workflows/all`
+  (import one-shots + watch backgrounds, type-tagged), Dashboard hero + Workflows
+  card listing **all** workflows, a "Running now: \<workflow\>" banner that
+  identifies the exact running workflow and links to its run, `NewWorkflowChooser`
+  modal for starting a new import **or** watch workflow, Workflows page as the
+  unified hub with per-type actions, Jobs page as "Run history" with a clickable
+  workflow column. Committed and pushed.
+- **Note:** the unified list currently surfaces nothing until a workflow exists in
+  the stores — `output/jobs/workflows.json` / `watchers.json` were left empty, so
+  the legacy run (job #27 → workflowId 1) has no persisted definition to show.
+  Re-running any workflow from the hub will repopulate it.
 - **Next:** Part 2 — persisted job history (date, file, duration, success,
   download result, re-run) + professional log viewer.
 

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Workflow as WorkflowIcon, Plus, Play, Trash2, X, Copy, Download, Upload } from 'lucide-react';
+import { Workflow as WorkflowIcon, Play, Square, Trash2, X, Copy, Download, Upload, Eye, RefreshCw, Pencil, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  getWorkflows, createWorkflow, updateWorkflow, deleteWorkflow, runWorkflow,
-  duplicateWorkflow, exportWorkflow, importWorkflow, usePoll, getTemplates, getAiSettings,
+  getAllWorkflows, createWorkflow, deleteWorkflow, updateWorkflow, runWorkflow,
+  duplicateWorkflow, exportWorkflow, importWorkflow, deleteWatcher, updateWatcher,
+  startWatcher, stopWatcher, syncWatcher, usePoll, getTemplates, getAiSettings,
 } from '../api';
 import { Card, Badge, Button, Empty, Field, Segmented, Toggle, useToast, Spinner, Dot } from '../components/ui';
+import NewWorkflowChooser from '../components/NewWorkflowChooser';
 
 const ALL_STEPS = [
   { id: 'extract', label: 'Extract (KMZ)' },
@@ -22,10 +24,11 @@ const tone = (s) => (s === 'completed' ? 'ok' : s === 'failed' ? 'err' : s === '
 export default function Workflows() {
   const toast = useToast();
   const nav = useNavigate();
-  const { data: workflows, refresh } = usePoll(getWorkflows, 4000);
+  const { data: workflows, refresh } = usePoll(getAllWorkflows, 4000);
   const list = workflows || [];
   const importInput = useRef(null);
 
+  const [showNew, setShowNew] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [steps, setSteps] = useState(['extract', 'ai', 'db']);
@@ -39,6 +42,7 @@ export default function Workflows() {
   const [aiModels, setAiModels] = useState(FALLBACK_MODELS);
   const [saving, setSaving] = useState(false);
   const [runningId, setRunningId] = useState(null);
+  const [busy, setBusy] = useState(null);
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState('');
 
@@ -67,7 +71,7 @@ export default function Workflows() {
         templateId: templateId || null,
         ai,
       });
-      toast('Workflow created');
+      toast('Import workflow created');
       setOpen(false);
       setName(''); setSteps(['extract', 'ai', 'db']); setMode('copy'); setAutoApply(false);
       setSourceDir(''); setTemplateId(''); setAiModel(''); setAiTemp('');
@@ -83,7 +87,7 @@ export default function Workflows() {
     setRunningId(w.id);
     try {
       const res = await runWorkflow(w.id);
-      toast(`Workflow run started (job #${res.job.id})`);
+      toast(`Import run started (job #${res.job.id})`);
       refresh();
     } catch (e) {
       toast(e.message, 'err');
@@ -92,10 +96,35 @@ export default function Workflows() {
     }
   };
 
-  const remove = async (w) => {
-    if (!window.confirm(`Delete workflow "${w.name}"?`)) return;
+  const toggleWatch = async (w) => {
+    setBusy(`toggle:${w.id}`);
     try {
-      await deleteWorkflow(w.id);
+      if (w.runtime?.watching) await stopWatcher(w.id); else await startWatcher(w.id);
+      refresh();
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const syncWatch = async (w) => {
+    setBusy(`sync:${w.id}`);
+    try {
+      await syncWatcher(w.id);
+      toast('Sync requested');
+      refresh();
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async (w) => {
+    if (!window.confirm(`Delete ${w.type} workflow "${w.name}"?`)) return;
+    try {
+      if (w.type === 'watch') await deleteWatcher(w.id); else await deleteWorkflow(w.id);
       toast('Workflow deleted');
       refresh();
     } catch (e) {
@@ -141,11 +170,12 @@ export default function Workflows() {
     }
   };
 
-  const startRename = (w) => { setRenaming(w.id); setRenameVal(w.name); };
+  const startRename = (w) => { setRenaming(`${w.type}:${w.id}`); setRenameVal(w.name); };
   const commitRename = async (w) => {
     if (renameVal.trim() && renameVal.trim() !== w.name) {
       try {
-        await updateWorkflow(w.id, { name: renameVal.trim() });
+        if (w.type === 'watch') await updateWatcher(w.id, { name: renameVal.trim() });
+        else await updateWorkflow(w.id, { name: renameVal.trim() });
         refresh();
       } catch (e) { toast(e.message, 'err'); }
     }
@@ -159,17 +189,19 @@ export default function Workflows() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Workflows</h1>
-          <p className="page-sub">Reusable imports: input source + AI config + template + mapping + stages, run in one click.</p>
+          <p className="page-sub">Everything that runs — import workflows (one-shot) and watch workflows (background). Start a new one.</p>
         </div>
         <div className="flex gap-8">
-          <Button variant="ghost" icon={Upload} onClick={() => importInput.current?.click()}>Import</Button>
+          <Button variant="ghost" icon={Upload} onClick={() => importInput.current?.click()}>Import JSON</Button>
           <input ref={importInput} type="file" accept=".json" hidden onChange={onImport} />
-          <Button variant="primary" icon={Plus} onClick={() => setOpen((o) => !o)}>{open ? 'Close' : 'New workflow'}</Button>
+          <Button variant="primary" icon={Play} onClick={() => setShowNew(true)}>New workflow</Button>
         </div>
       </div>
 
+      {showNew && <NewWorkflowChooser onClose={() => setShowNew(false)} />}
+
       {open && (
-        <Card className="pad mb-16" title="New workflow" sub="Compose input, AI, destination and stages. Each run becomes a job.">
+        <Card className="pad mb-16" title="New import workflow" sub="Compose input, AI, destination and stages. Each run becomes a job.">
           <div className="grid cols-3 gap-16">
             <div className="flex-col gap-16">
               <Field label="Workflow name">
@@ -232,50 +264,90 @@ export default function Workflows() {
       )}
 
       {list.length === 0 && !open ? (
-        <Card pad><Empty icon={WorkflowIcon} title="No workflows yet" text="Create a workflow to save a stage sequence and run it in one click." /></Card>
+        <Card pad>
+          <Empty icon={WorkflowIcon} title="No workflows yet" text="Workflows are the unit of work — import (one-shot) or watch (background)."
+            action={<Button variant="primary" icon={Play} onClick={() => setShowNew(true)}>Start a new workflow</Button>} />
+        </Card>
       ) : (
         <div className="grid cols-2">
-          {list.map((w) => (
-            <Card key={w.id} className="hoverable pad">
-              <div className="flex between">
-                <div className="flex gap-8" style={{ minWidth: 0 }}>
-                  <WorkflowIcon size={17} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                  {renaming === w.id ? (
-                    <input className="input" value={renameVal} autoFocus
-                      onChange={(e) => setRenameVal(e.target.value)}
-                      onBlur={() => commitRename(w)}
-                      onKeyDown={(e) => e.key === 'Enter' && commitRename(w)} />
+          {list.map((w) => {
+            const isWatch = w.type === 'watch';
+            const key = `${w.type}:${w.id}`;
+            const watching = isWatch && w.runtime?.watching;
+            return (
+              <Card key={key} className="hoverable pad">
+                <div className="flex between">
+                  <div className="flex gap-8" style={{ minWidth: 0 }}>
+                    {isWatch ? <Eye size={17} style={{ color: 'var(--accent)', flexShrink: 0 }} /> : <WorkflowIcon size={17} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                    {renaming === key ? (
+                      <input className="input" value={renameVal} autoFocus
+                        onChange={(e) => setRenameVal(e.target.value)}
+                        onBlur={() => commitRename(w)}
+                        onKeyDown={(e) => e.key === 'Enter' && commitRename(w)} />
+                    ) : (
+                      <b style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</b>
+                    )}
+                  </div>
+                  <div className="flex gap-8">
+                    <Badge tone={isWatch ? (watching ? 'ok' : w.runtime?.enabled ? 'info' : 'warn') : (w.lastStatus ? tone(w.lastStatus) : 'info')}>
+                      <Dot tone={isWatch ? (watching ? 'ok' : w.runtime?.enabled ? 'info' : 'err') : (w.lastStatus ? tone(w.lastStatus) : 'info')} />
+                      {isWatch ? (watching ? 'Watching' : w.runtime?.enabled ? 'Stopped' : 'Off') : (w.lastStatus || 'import')}
+                    </Badge>
+                    <Badge tone="info">{isWatch ? 'watch' : 'import'}</Badge>
+                    <Button variant="ghost" icon={Pencil} onClick={() => startRename(w)} title="Rename" />
+                    <Button variant="ghost" icon={Trash2} onClick={() => remove(w)} title="Delete" />
+                  </div>
+                </div>
+
+                {isWatch ? (
+                  <>
+                    <p className="card-sub mt-8 mono">{w.path || '—'}</p>
+                    <p className="card-sub">
+                      {w.steps?.join(' · ')}
+                      {w.mode === 'original' ? ' · modify existing' : ' · create new file'}
+                      {w.templateId ? ' · template' : w.targetPath ? ' · file' : ' · no destination'}
+                      {w.autoApply ? ' · auto-apply' : ''}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="card-sub mt-8">
+                      {w.runs} run{w.runs === 1 ? '' : 's'}
+                      {w.lastRunAt ? ` · last ${new Date(w.lastRunAt).toLocaleString()}` : ''}
+                      {w.autoApply ? ' · auto-apply' : ''}
+                    </p>
+                    <div className="flex gap-8 mt-16 flex-wrap">
+                      {w.steps.map((s) => <Badge key={s} tone="info">{s}</Badge>)}
+                      {w.templateId && <Badge tone="ok">template</Badge>}
+                      {w.ai?.model && <Badge tone="ok">{w.ai.model}</Badge>}
+                      {w.input?.sourceDir && <Badge tone="warn">custom input</Badge>}
+                    </div>
+                  </>
+                )}
+
+                <div className="flex gap-8 mt-16 flex-wrap">
+                  {isWatch ? (
+                    <>
+                      <Button variant="primary" icon={watching ? Square : Play} onClick={() => toggleWatch(w)} loading={busy === `toggle:${w.id}`}>
+                        {watching ? 'Stop' : 'Start'}
+                      </Button>
+                      <Button variant="ghost" icon={RefreshCw} onClick={() => syncWatch(w)} loading={busy === `sync:${w.id}`}>Sync now</Button>
+                      <Button variant="ghost" icon={Pencil} onClick={() => nav('/watchers', { state: { editWatcherId: w.id } })}>Edit</Button>
+                    </>
                   ) : (
-                    <b style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</b>
+                    <>
+                      <Button variant="primary" icon={Play} onClick={() => run(w)} disabled={runningId === w.id}>
+                        {runningId === w.id ? <><Spinner /> Running…</> : 'Run'}
+                      </Button>
+                      <Button variant="ghost" icon={Copy} onClick={() => dup(w)}>Duplicate</Button>
+                      <Button variant="ghost" icon={Download} onClick={() => exp(w)}>Export</Button>
+                    </>
                   )}
+                  <Button variant="ghost" onClick={() => nav('/jobs')}>Jobs</Button>
                 </div>
-                <div className="flex gap-8">
-                  {w.lastStatus && <Badge tone={tone(w.lastStatus)}><Dot tone={tone(w.lastStatus)} /> {w.lastStatus}</Badge>}
-                  <Button variant="ghost" icon={Plus} onClick={() => startRename(w)} title="Rename" />
-                  <Button variant="ghost" icon={Trash2} onClick={() => remove(w)} title="Delete" />
-                </div>
-              </div>
-              <p className="card-sub mt-8">
-                {w.runs} run{w.runs === 1 ? '' : 's'}
-                {w.lastRunAt ? ` · last ${new Date(w.lastRunAt).toLocaleString()}` : ''}
-                {w.autoApply ? ' · auto-apply' : ''}
-              </p>
-              <div className="flex gap-8 mt-16 flex-wrap">
-                {w.steps.map((s) => <Badge key={s} tone="info">{s}</Badge>)}
-                {w.templateId && <Badge tone="ok">template</Badge>}
-                {w.ai?.model && <Badge tone="ok">{w.ai.model}</Badge>}
-                {w.input?.sourceDir && <Badge tone="warn">custom input</Badge>}
-              </div>
-              <div className="flex gap-8 mt-16 flex-wrap">
-                <Button variant="primary" icon={Play} onClick={() => run(w)} disabled={runningId === w.id}>
-                  {runningId === w.id ? <><Spinner /> Running…</> : 'Run'}
-                </Button>
-                <Button variant="ghost" icon={Copy} onClick={() => dup(w)}>Duplicate</Button>
-                <Button variant="ghost" icon={Download} onClick={() => exp(w)}>Export</Button>
-                <Button variant="ghost" onClick={() => nav('/jobs')}>Jobs</Button>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

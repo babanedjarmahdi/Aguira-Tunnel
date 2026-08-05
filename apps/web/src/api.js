@@ -107,6 +107,7 @@ export const templateDownloadUrl = (id, version) => `/api/templates/${id}/versio
 
 // ---- Workflows ------------------------------------------------------------
 export const getWorkflows = () => api('/api/workflows');
+export const getAllWorkflows = () => api('/api/workflows/all');
 export const createWorkflow = (body) => api('/api/workflows', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
