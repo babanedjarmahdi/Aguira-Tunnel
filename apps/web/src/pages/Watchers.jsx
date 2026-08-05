@@ -75,6 +75,7 @@ export default function Watchers() {
     if (!f.name.trim()) { toast('Give the watcher a name', 'err'); return; }
     if (!f.watchPath.trim()) { toast('Set a folder or file path', 'err'); return; }
     if (!f.steps.length) { toast('Pick at least one stage', 'err'); return; }
+    if (!f.templateId && !f.targetPath.trim()) { toast('Choose a destination workbook or create a new file', 'err'); return; }
     setSaving(true);
     try {
       const body = {
@@ -229,18 +230,18 @@ export default function Watchers() {
                   value={f.mode}
                   onChange={(m) => set('mode')(m)}
                   options={[
-                    { value: 'copy', label: 'Copy (new file)' },
-                    { value: 'original', label: 'Modify original' },
+                    { value: 'copy', label: 'Create new file' },
+                    { value: 'original', label: 'Modify existing file' },
                   ]}
                 />
               </Field>
-              <Field label="Workbook" hint={f.mode === 'copy' ? 'Source workbook copied and filled' : 'Workbook modified in place (backup made)'}>
+              <Field label="Workbook" hint={f.mode === 'copy' ? 'Template copied to a new filled workbook' : 'Workbook modified in place (backup made)'}>
                 <select className="select" value={f.templateId} onChange={(e) => set('templateId')(e.target.value)}>
-                  <option value="">Default (EXCEL_TEMPLATE)</option>
+                  <option value="">{f.targetPath.trim() ? '— or use the file below —' : '— choose a template (required) —'}</option>
                   {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </Field>
-              <Field label="Or explicit file path" hint="Overrides the template/default above">
+              <Field label="Or explicit file path" hint={f.mode === 'copy' ? 'Base workbook for the new file' : 'File to modify (required if no template)'}>
                 <div className="flex gap-8">
                   <input className="input" placeholder="C:/…/workbook.xlsx" value={f.targetPath} onChange={(e) => set('targetPath')(e.target.value)} />
                   <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('target')}>Choose file</Button>

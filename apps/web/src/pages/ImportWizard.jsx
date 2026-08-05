@@ -228,6 +228,7 @@ export default function ImportWizard() {
   const saveWatchWorkflow = async () => {
     if (!activeWatcher) return;
     if (!wSteps.length) { toast('Pick at least one stage', 'err'); return; }
+    if (!wTemplateId && !wTargetPath.trim()) { toast('Choose a destination workbook or create a new file first', 'err'); return; }
     setWatchSaving(true);
     try {
       await updateWatcher(activeWatcher.id, {
@@ -372,7 +373,7 @@ export default function ImportWizard() {
                     {activeWatcher?.steps.map((s) => <Badge key={s} tone="info">{s}</Badge>)}
                     {activeWatcher && (
                       <Badge tone={activeWatcher.mode === 'original' ? 'warn' : 'ok'}>
-                        {activeWatcher.mode === 'original' ? 'modify original' : 'copy'}
+                        {activeWatcher.mode === 'original' ? 'modify existing' : 'create new file'}
                         {activeWatcher.templateId ? ' · template' : activeWatcher.targetPath ? ' · file' : ''}
                       </Badge>
                     )}
@@ -400,19 +401,21 @@ export default function ImportWizard() {
                           value={wMode}
                           onChange={setWMode}
                           options={[
-                            { value: 'copy', label: 'Copy (new file)' },
-                            { value: 'original', label: 'Modify original' },
+                            { value: 'copy', label: 'Create new file' },
+                            { value: 'original', label: 'Modify existing file' },
                           ]}
                         />
                       </div>
-                      <Field label="Workbook to fill / modify" hint="A registered template or an explicit .xlsx path">
+                      <Field label="Destination workbook" hint={wMode === 'copy'
+                        ? 'Pick a template — a new filled workbook is created from it on each sync.'
+                        : 'Pick a template or an existing .xlsx to fill in place (backed up first).'}>
                         <select className="select" value={wTemplateId} onChange={(e) => setWTemplateId(e.target.value)}>
-                          <option value="">Default (EXCEL_TEMPLATE)</option>
+                          <option value="">{wTargetPath.trim() ? '— or use the file below —' : '— choose a template (required) —'}</option>
                           {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                       </Field>
                       <div className="flex gap-8">
-                        <input className="input" placeholder="C:/…/workbook.xlsx (optional)" value={wTargetPath} onChange={(e) => setWTargetPath(e.target.value)} />
+                        <input className="input" placeholder={wMode === 'copy' ? 'C:/…/source.xlsx — base for the new file (optional)' : 'C:/…/workbook.xlsx — file to modify (required)'} value={wTargetPath} onChange={(e) => setWTargetPath(e.target.value)} />
                         <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('target')}>Browse</Button>
                       </div>
                       <div className="flex gap-8">
