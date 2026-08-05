@@ -6,6 +6,7 @@
 //
 // Usage: node scripts/telegram-ask.mjs --title "Job history + log viewer" --body "..." [--timeout 60000]
 import dotenv from 'dotenv';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import { sendTelegram, decisionKeyboard, readInbox, inboxCount } from './telegram-bridge.mjs';
@@ -20,7 +21,8 @@ function arg(name, def) {
 }
 
 const title = arg('title', 'TerraFlow report');
-const body = arg('body', '');
+const bodyFile = arg('body-file', null);
+const body = bodyFile ? fs.readFileSync(bodyFile, 'utf8') : arg('body', '');
 const timeoutMs = Number(arg('timeout', 60000));
 const silent = arg('silent', '0') === '1';
 
