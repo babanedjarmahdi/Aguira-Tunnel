@@ -126,10 +126,13 @@ logs, debug — stays hidden in Basic mode and unlocks in v0.5 (Professional mod
   search, export — `GET /api/logs` aggregates every persisted `pushJobLog`
   entry from `output/jobs/jobs.json` (survives restarts); the Logs page toggles
   Persisted / Live modes, filters by level, searches, and exports JSON or text.
-- **Plugin contracts solidified**: the built-in adapters are declared as the
-  first plugin-shaped implementations (input `read`, output
-  `inspect/draft/preview/apply`, AI `extract`) so v0.6's plugin pair has a
-  stable contract to ship against.
+- **Plugin contracts solidified** ✅: built-in adapters declared as the first
+  plugin-shaped implementations (input `read`, output
+  `inspect/draft/preview/apply`, AI `extract`) — `packages/engine/src/plugins.js`
+  (contracts `CONTRACTS`, manifest validation `validateManifest`/`validatePlugin`,
+  built-in factories `createInputPlugin`/`createOutputPlugin`/`createAiPlugin`,
+  registry `listPlugins`/`resolvePlugin`/`createBuiltinPlugins`, `GET /api/plugins`
+  audit list) so v0.6's plugin pair has a stable contract to ship against.
 
 ## v0.6 — A second workflow / adapter ⏳
 

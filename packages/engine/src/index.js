@@ -9,3 +9,4 @@ export { createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkf
 export { buildDraft, getDraft, applyDraft, readJobRecords, jobWorkDir, jobAiPath, jobDraftPath } from './draft.js';
 export { createWatchService, runWatcher, createWatcherManager, watcherStateDir } from './watch.js';
 export { createWatcher, getWatcher, listWatchers, updateWatcher, deleteWatcher, pushWatcherHistory, clearWatcherHistory } from './watchers.js';
+export { PLUGIN_TYPES, CONTRACTS, validateManifest, validatePlugin, createInputPlugin, createOutputPlugin, createAiPlugin, listPlugins, resolvePlugin, createBuiltinPlugins } from './plugins.js';

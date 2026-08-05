@@ -14,6 +14,7 @@ import {
   loadAiSettings, saveAiSettings, AI_DEFAULTS,
   listTemplates, getTemplate, registerTemplate, updateTemplate, deleteTemplate,
   templateVersionPath, activeTemplatePath,
+  listPlugins, PLUGIN_TYPES,
 } from '@terraflow/engine';
 import { testAiConnection, GROQ_FREE_MODELS } from '@terraflow/ai';
 import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
@@ -350,6 +351,14 @@ app.post('/api/templates/:id/map', async (req, res) => {
 });
 
 app.get('/api/status', (req, res) => res.json(service.status()));
+
+// ---- Plugin audit list (Professional UI) ----------------------------------
+// The built-in adapters declared as plugin-shaped implementations against the
+// stable contracts (input read / output inspect-draft-preview-apply / AI extract).
+app.get('/api/plugins', (req, res) => {
+  const plugins = listPlugins().map((m) => ({ ...m, builtin: true, methods: m.contract }));
+  res.json({ plugins, types: PLUGIN_TYPES });
+});
 
 // ---- Uploads (raw KMZ file per request) ----------------------------------
 app.post('/api/uploads', express.raw({ type: 'application/octet-stream', limit: '200mb' }), (req, res) => {
@@ -903,6 +912,7 @@ app.listen(PORT, () => {
     }
   }
   console.log(`  GET  /api/health | /api/config | /api/status | /api/properties`);
+  console.log(`  GET  /api/plugins | /api/jobs | /api/jobs/:id | /api/watch`);
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
   console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test`);
   console.log(`  GET|POST /api/templates | GET|PUT|DELETE /api/templates/:id`);

@@ -14,13 +14,14 @@
 | v0.5.5 | `d248222` | 2026-08-04 | Workflow builder (real) |
 | v0.5.6 | `d49d1b2` | 2026-08-05 | Workflow-first UI + managed watchers + watch sync reconciliation |
 | v0.5.7 | `fb503e1` | 2026-08-05 | Persisted job history (re-run/download) + professional log viewer |
-| v0.5.8 | (this commit) | 2026-08-05 | Telegram bridge + task reports with decision buttons (اكمل/انتظر/اقتراح تعديل) |
+| v0.5.8 | `05a7755` | 2026-08-05 | Telegram bridge + task reports with decision buttons (اكمل/انتظر/اقتراح تعديل) |
+| v0.5.9 | (this commit) | 2026-08-05 | Plugin contracts solidified: built-in adapters declared as plugin-shaped implementations (input `read`, output `inspect/draft/preview/apply`, AI `extract`) — `engine/src/plugins.js` + `GET /api/plugins` |
 
 ## How to roll back
 
 ```
 git fetch origin
-git checkout v0.5.8      # e.g. roll back to the bridge build
+git checkout v0.5.9      # e.g. roll back to the plugin contracts build
 ```
 
-The next completed plan task will be tagged **v0.5.9**.
+The next completed plan task will be tagged **v0.6.0**.
