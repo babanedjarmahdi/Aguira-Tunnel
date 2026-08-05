@@ -114,6 +114,11 @@ logs, debug — stays hidden in Basic mode and unlocks in v0.5 (Professional mod
   mapping + output); save / duplicate / export / import / run.
 - **Watch jobs as managed items**: folder / single-file watches, debounce,
   run-on-startup, per-watcher run history and status.
+- **Watch sync reconciles the destination workbook** (add / update / remove) with
+  an incremental per-watcher AI cache + persisted row map, preserves the workbook's
+  RTL sheet views on every write, writes in place (no rename → no OneDrive/Excel
+  `EPERM`), and exposes a `previewInPlaceSync` dry-run for the add/update/remove
+  plan before any write.
 - **Persisted job history**: date, file, duration, success, download result,
   re-run.
 - **Professional log viewer**: persisted logs + SSE stream, level filters,

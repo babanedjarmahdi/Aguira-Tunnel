@@ -175,8 +175,11 @@ it resumes from cache and only re-processes failed/new rows.
 
 ### Excel file locked / `~$CRM_...xlsx`
 
-Close Excel. The pipeline always writes a **copy**, so the original stays safe —
-but if Excel has the copy open it may also be locked.
+Close Excel. Watch syncs write **in place** (ExcelJS streams to the original path,
+no rename), so an open workbook denies the write with `EPERM`/`EBUSY`; a sync that
+fails this way never corrupts the file — it just leaves the previous backup
+(`output/backup/*_before_fill_<ts>.xlsx`) untouched and records the failure in the
+watcher history.
 
 ### Corrupted `node_modules` (SyntaxError in exceljs)
 

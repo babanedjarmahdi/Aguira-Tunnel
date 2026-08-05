@@ -121,26 +121,43 @@ export async function fillInPlace({ originalPath, records, backupDir, autoCreate
 // deleted are spliced out, existing rows are updated in place (keeping their
 // id + added-on date), and new records are appended with fresh ids. The new
 // state is persisted so the next sync knows which rows belong to which file.
-export async function fillInPlaceSync({ originalPath, records, backupDir, autoCreate, statePath }) {
+export async function fillInPlaceSync({ originalPath, records, backupDir, autoCreate, statePath, dryRun = false } = {}) {
   if (!fs.existsSync(originalPath)) throw new Error(`Original not found: ${originalPath}`);
   let prevState = {};
   if (statePath && fs.existsSync(statePath)) {
     try { prevState = JSON.parse(fs.readFileSync(statePath, 'utf8')) || {}; } catch { prevState = {}; }
   }
+  const { workbook, ws } = await openSheet(originalPath);
+  const viewsBefore = ws.views ? JSON.parse(JSON.stringify(ws.views)) : null;
+  const createdHeaders = ensureHeaders(ws, autoCreate);
+  const computed = computeInPlaceSyncRows(ws, records, prevState);
+  if (dryRun) {
+    return {
+      dryRun: true,
+      outputPath: originalPath,
+      statePath,
+      rows: computed.rows.length,
+      updated: computed.updated,
+      removed: computed.removed,
+      appended: computed.appended,
+      lastRow: computed.lastRow,
+      createdHeaders,
+      deletions: computed.deletions,
+    };
+  }
   fs.mkdirSync(backupDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backup = path.join(backupDir, `${path.basename(originalPath, '.xlsx')}_before_fill_${stamp}.xlsx`);
   fs.copyFileSync(originalPath, backup);
-  const { workbook, ws } = await openSheet(originalPath);
-  const createdHeaders = ensureHeaders(ws, autoCreate);
-  const computed = computeInPlaceSyncRows(ws, records, prevState);
   if (computed.deletions.length) unshareSharedFormulas(ws);
   for (const row of [...computed.deletions].sort((a, b) => b - a)) ws.spliceRows(row, 1);
   writeSyncRows(ws, computed.rows);
-  // Atomic write: never leave the workbook truncated/corrupt on a failed save.
-  const tmp = `${originalPath}.sync.tmp`;
-  await workbook.xlsx.writeFile(tmp);
-  fs.renameSync(tmp, originalPath);
+  // Preserve the sheet views (RTL direction, panes, freeze) exactly as read in.
+  if (viewsBefore) ws.views = viewsBefore;
+  // Write IN PLACE to the same path. Never rename/replace the original file —
+  // a rename changes the file's identity (breaks OneDrive/Excel locks and can
+  // EPERM). ExcelJS streams to the existing file so the path stays put.
+  await workbook.xlsx.writeFile(originalPath);
   if (statePath) {
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
     fs.writeFileSync(statePath, JSON.stringify(computed.state, null, 2), 'utf8');
@@ -150,6 +167,13 @@ export async function fillInPlaceSync({ originalPath, records, backupDir, autoCr
     rows: computed.rows.length, updated: computed.updated, removed: computed.removed,
     appended: computed.appended, lastRow: computed.lastRow, createdHeaders,
   };
+}
+
+// Dry-run of the watch-mode reconcile: compute exactly what would be written
+// (added/updated/removed rows) WITHOUT touching the workbook or its state file.
+// Callers show this as a preview and only call fillInPlaceSync after approval.
+export async function previewInPlaceSync({ originalPath, records, statePath, autoCreate }) {
+  return fillInPlaceSync({ originalPath, records, backupDir: null, autoCreate, statePath, dryRun: true });
 }
 
 // ---- Draft preview: compute the exact rows that would be written, without writing ----

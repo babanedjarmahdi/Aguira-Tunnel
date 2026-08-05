@@ -236,6 +236,20 @@ one directory (`output/workspaces/<id>/`) whose archive is the backup/restore
 unit. In the cloud era a workspace maps cleanly to a tenant (see
 ARCHITECTURE_PLAN §7).
 
+## D25 — Watch sync writes in place and never renames the destination
+
+**Status:** Active (watch-mode fills).
+
+A temp-file + atomic `rename` (earlier used to guarantee a never-0-byte workbook)
+changes the file's **identity**: Excel/OneDrive hold deny-write + deny-rename
+locks on the real path, so the rename fails with `EPERM`/`EBUSY` whenever the
+workbook is open. `fillInPlaceSync` now lets ExcelJS stream straight to the
+original path (path stays put, no rename) and **restores `ws.views` after
+splicing**, so the Arabic workbook keeps its RTL direction, freeze panes and
+panes on every sync. Corruption safety comes from timestamped
+`*_before_fill_<ts>.xlsx` backups before every write plus the `previewInPlaceSync`
+dry-run (add/update/remove plan, no write) that an approval gate can use.
+
 ---
 
 *Next: [ROADMAP.md](ROADMAP.md) · [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md)*
