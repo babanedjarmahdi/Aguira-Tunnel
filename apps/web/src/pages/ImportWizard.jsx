@@ -3,16 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import {
   UploadCloud, Check, Sparkles, FileSpreadsheet, RefreshCcw, Play,
   ChevronLeft, ChevronRight, FolderOpen, X, CheckCircle2, Zap, Database,
-  ClipboardList, Download, AlertTriangle, Clock, Radar, Square, ExternalLink, Bookmark,
+  ClipboardList, Download, AlertTriangle, Clock, Radar, Square, ExternalLink, Bookmark, Pencil,
 } from 'lucide-react';
 import {
   uploadKmz, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft, cancelJob,
-  useJobEvents, getConfig, usePoll, getWatch, watchStart, watchStop,
+  useJobEvents, getConfig, usePoll, getWatchers, createWatcher, updateWatcher, startWatcher, stopWatcher, getTemplates,
 } from '../api';
 import { Button, Badge, Progress, Dot, useToast, Card, Spinner, Segmented, Empty, Field } from '../components/ui';
 import PipelineVisual, { JOB_STAGES } from '../components/PipelineVisual';
+import PathBrowser from '../components/PathBrowser';
 
 const STEP_LABELS = ['Input', 'Excel destination', 'Run', 'Progress', 'Review draft', 'Apply'];
+
+const WATCH_STEPS = [
+  { id: 'extract', label: 'Extract' },
+  { id: 'ai', label: 'AI' },
+  { id: 'db', label: 'DB' },
+  { id: 'fill', label: 'Copy fill' },
+  { id: 'fill:original', label: 'Original fill' },
+];
 
 export default function ImportWizard() {
   const toast = useToast();
@@ -43,8 +52,26 @@ export default function ImportWizard() {
   const [applyResult, setApplyResult] = useState(null);
   const [applying, setApplying] = useState(false);
 
-  const { data: watch } = usePoll(getWatch, 2000);
+  const { data: watchers } = usePoll(getWatchers, 4000);
+  const list = watchers || [];
+  const [activeWatcherId, setActiveWatcherId] = useState(null);
   const [watchToggling, setWatchToggling] = useState(false);
+  const [watchSaving, setWatchSaving] = useState(false);
+  const [browse, setBrowse] = useState(null);
+  const [wMode, setWMode] = useState('copy');
+  const [wTemplateId, setWTemplateId] = useState('');
+  const [wTargetPath, setWTargetPath] = useState('');
+  const [wSteps, setWSteps] = useState(['extract', 'ai', 'db']);
+  const [templates, setTemplates] = useState([]);
+  const activeWatcher = list.find((w) => w.id === Number(activeWatcherId)) || list[0] || null;
+
+  useEffect(() => {
+    if (!activeWatcherId && list[0]) setActiveWatcherId(list[0].id);
+  }, [list, activeWatcherId]);
+
+  useEffect(() => {
+    getTemplates().then((r) => setTemplates(r.templates)).catch(() => {});
+  }, []);
 
   // ---- Step 1: Excel destination (inspect + mapping) ---------------------
   useEffect(() => {
@@ -142,9 +169,10 @@ export default function ImportWizard() {
   };
 
   const doWatchStart = async () => {
+    if (!activeWatcher) { toast('Choose a folder to watch first', 'err'); return; }
     setWatchToggling(true);
     try {
-      await watchStart();
+      await startWatcher(activeWatcher.id);
       toast('Watch started — new .kmz files will auto-sync');
     } catch (e) {
       toast(e.message, 'err');
@@ -154,15 +182,72 @@ export default function ImportWizard() {
   };
 
   const doWatchStop = async () => {
+    if (!activeWatcher) return;
     setWatchToggling(true);
     try {
-      await watchStop();
+      await stopWatcher(activeWatcher.id);
       toast('Watch stopped');
     } catch (e) {
       toast(e.message, 'err');
     } finally {
       setWatchToggling(false);
     }
+  };
+
+  const chooseWatchFolder = async (p) => {
+    setWatchSaving(true);
+    try {
+      let id = activeWatcher?.id;
+      if (id) {
+        await updateWatcher(id, { path: p, type: 'folder' });
+      } else {
+        const w = await createWatcher({
+          name: `Watch ${p.split(/[/\\]/).filter(Boolean).pop() || 'folder'}`,
+          type: 'folder', path: p, debounceMs: 1500, runOnStartup: false, autoApply: true,
+          steps: ['extract', 'ai', 'db'], mode: 'copy',
+        });
+        id = w.id;
+        setActiveWatcherId(w.id);
+      }
+      const st = await startWatcher(id);
+      toast(`Watching ${st.path}`);
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setWatchSaving(false);
+      setBrowse(null);
+    }
+  };
+
+  const openWatchWorkflow = () => {
+    if (!activeWatcher) return;
+    setWMode(activeWatcher.mode || 'copy');
+    setWTemplateId(activeWatcher.templateId || '');
+    setWTargetPath(activeWatcher.targetPath || '');
+    setWSteps([...activeWatcher.steps]);
+  };
+
+  const saveWatchWorkflow = async () => {
+    if (!activeWatcher) return;
+    if (!wSteps.length) { toast('Pick at least one stage', 'err'); return; }
+    setWatchSaving(true);
+    try {
+      await updateWatcher(activeWatcher.id, {
+        mode: wMode,
+        templateId: wTemplateId || null,
+        targetPath: wTargetPath.trim() || null,
+        steps: wSteps,
+      });
+      toast('Watch workflow saved');
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      setWatchSaving(false);
+    }
+  };
+
+  const toggleWStep = (id) => {
+    setWSteps((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   };
 
   const saveProfile = async () => {
@@ -262,30 +347,86 @@ export default function ImportWizard() {
               <div className="grid cols-2">
                 <Card pad>
                   <div className="flex gap-8 mb-12">
-                    <Badge tone={watch?.watching ? 'ok' : watch?.enabled ? 'info' : 'warn'}>
-                      <Dot tone={watch?.watching ? 'ok' : watch?.enabled ? 'info' : 'err'} />
-                      {watch?.watching ? 'Watching…' : watch?.enabled ? 'Standby' : 'Unavailable'}
+                    <Badge tone={activeWatcher?.runtime?.watching ? 'ok' : activeWatcher?.runtime?.enabled ? 'info' : 'warn'}>
+                      <Dot tone={activeWatcher?.runtime?.watching ? 'ok' : activeWatcher?.runtime?.enabled ? 'info' : 'err'} />
+                      {activeWatcher?.runtime?.watching ? 'Watching…' : activeWatcher?.runtime?.enabled ? 'Stopped' : 'No watcher'}
                     </Badge>
-                    <Badge tone="info">debounce {watch?.debounceMs ?? 1500} ms</Badge>
+                    <Badge tone="info">debounce {activeWatcher?.debounceMs ?? 1500} ms</Badge>
+                  </div>
+                  <div className="flex gap-8 mb-8">
+                    <select className="select" style={{ minWidth: 0, flex: 1 }} value={activeWatcher?.id || ''}
+                      onChange={(e) => setActiveWatcherId(e.target.value)}>
+                      <option value="">Select a watcher…</option>
+                      {list.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                    <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('watch')} disabled={watchSaving}>
+                      {watchSaving ? <Spinner /> : 'Choose folder…'}
+                    </Button>
                   </div>
                   <p className="hint">
-                    Folder: <span className="mono" style={{ color: 'var(--text)' }}>{watch?.watchDir || '—'}</span>
+                    Folder: <span className="mono" style={{ color: 'var(--text)' }}>{activeWatcher?.path || '—'}</span>
                   </p>
-                  <p className="hint mt-8">
-                    Every add/modify/remove of a <span className="mono">.kmz</span> file queues an automatic
-                    watch-sync job (extract → AI → database) after the debounce window. Jobs appear in the Jobs page.
-                  </p>
-                  <div className="flex gap-8 mt-16">
-                    {watch?.watching
+                  <div className="flex gap-8 mt-16 flex-wrap">
+                    {activeWatcher?.steps.map((s) => <Badge key={s} tone="info">{s}</Badge>)}
+                    {activeWatcher && (
+                      <Badge tone={activeWatcher.mode === 'original' ? 'warn' : 'ok'}>
+                        {activeWatcher.mode === 'original' ? 'modify original' : 'copy'}
+                        {activeWatcher.templateId ? ' · template' : activeWatcher.targetPath ? ' · file' : ''}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-8 mt-16 flex-wrap">
+                    {activeWatcher?.runtime?.watching
                       ? <Button variant="primary" icon={Square} onClick={doWatchStop} loading={watchToggling}>Stop watching</Button>
-                      : <Button variant="primary" icon={Radar} onClick={doWatchStart} disabled={!watch?.enabled} loading={watchToggling}>Start watching</Button>}
+                      : <Button variant="primary" icon={Radar} onClick={doWatchStart} disabled={!activeWatcher || !activeWatcher.path} loading={watchToggling}>Start watching</Button>}
+                    <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/watchers')}>Manage watchers</Button>
                     <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/jobs')}>Open Jobs</Button>
                   </div>
+                  <details className="mt-16" style={{ cursor: 'pointer' }}>
+                    <summary className="text-sm" style={{ color: 'var(--text-3)' }}>Watch workflow · choose the file to fill / modify</summary>
+                    <div className="flex-col gap-16 mt-12">
+                      <div className="flex gap-16 flex-wrap">
+                        {WATCH_STEPS.map((s) => (
+                          <label key={s.id} className="row" style={{ cursor: 'pointer' }}>
+                            <input type="checkbox" checked={wSteps.includes(s.id)} onChange={() => toggleWStep(s.id)} />
+                            <span className="text-sm">{s.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex gap-16 flex-wrap">
+                        <Segmented
+                          value={wMode}
+                          onChange={setWMode}
+                          options={[
+                            { value: 'copy', label: 'Copy (new file)' },
+                            { value: 'original', label: 'Modify original' },
+                          ]}
+                        />
+                      </div>
+                      <Field label="Workbook to fill / modify" hint="A registered template or an explicit .xlsx path">
+                        <select className="select" value={wTemplateId} onChange={(e) => setWTemplateId(e.target.value)}>
+                          <option value="">Default (EXCEL_TEMPLATE)</option>
+                          {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      </Field>
+                      <div className="flex gap-8">
+                        <input className="input" placeholder="C:/…/workbook.xlsx (optional)" value={wTargetPath} onChange={(e) => setWTargetPath(e.target.value)} />
+                        <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('target')}>Browse</Button>
+                      </div>
+                      <div className="flex gap-8">
+                        <Button variant="primary" icon={Bookmark} onClick={saveWatchWorkflow} disabled={watchSaving || !activeWatcher}>
+                          {watchSaving ? <><Spinner /> Saving…</> : 'Save watch workflow'}
+                        </Button>
+                        {activeWatcher && <Button variant="ghost" icon={Pencil} onClick={openWatchWorkflow}>Load current</Button>}
+                      </div>
+                    </div>
+                  </details>
                 </Card>
                 <Card pad title="When to use watch mode">
                   <div className="flex-col gap-4" style={{ paddingLeft: 18 }}>
                     <li className="muted text-sm">You keep adding .kmz files to the same folder over time.</li>
                     <li className="muted text-sm">You want the destination re-synced automatically, hands-off.</li>
+                    <li className="muted text-sm">Each watcher is a managed item on the Watchers page — pick the folder, the file to fill and the stages.</li>
                     <li className="muted text-sm">One-shot imports still use Single file / Whole folder above.</li>
                   </div>
                 </Card>
@@ -341,6 +482,18 @@ export default function ImportWizard() {
             )}
           </div>
         </Card>
+      )}
+
+      {browse && (
+        <PathBrowser
+          mode={browse === 'target' ? 'file' : 'folder'}
+          onPick={(p) => {
+            if (browse === 'target') setWTargetPath(p);
+            else chooseWatchFolder(p);
+            setBrowse(null);
+          }}
+          onClose={() => setBrowse(null)}
+        />
       )}
 
       {/* STEP 1 — Excel destination */}
