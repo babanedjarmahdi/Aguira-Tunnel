@@ -1,0 +1,26 @@
+# TerraFlow — Version registry (rollback points)
+
+> Every time a task in the main plan completes, the work is committed, tagged
+> with the next version number, and recorded here. **Use `git checkout <tag>`
+> to roll the codebase back to any of these points.**
+
+| Version | Commit | Date | What changed |
+|---|---|---|---|
+| v0.5.0 | (baseline) | 2026-08-04 | Part 1 shipped: safe import loop, Job model, draft/apply, watch mode, single-port :3000 |
+| v0.5.1 | `473cf3e` | 2026-08-04 | Multi-workflow + Workflows page, single-port model |
+| v0.5.2 | `254a9d2` | 2026-08-04 | Reliability: cancel, Groq 429 backoff, boot recovery |
+| v0.5.3 | `f6cbe4b` | 2026-08-04 | AI configuration (real), PRO mode toggle |
+| v0.5.4 | `206fde1` | 2026-08-04 | Excel template manager (real) |
+| v0.5.5 | `d248222` | 2026-08-04 | Workflow builder (real) |
+| v0.5.6 | `d49d1b2` | 2026-08-05 | Workflow-first UI + managed watchers + watch sync reconciliation |
+| v0.5.7 | `fb503e1` | 2026-08-05 | Persisted job history (re-run/download) + professional log viewer |
+| v0.5.8 | (this commit) | 2026-08-05 | Telegram bridge + task reports with decision buttons (اكمل/انتظر/اقتراح تعديل) |
+
+## How to roll back
+
+```
+git fetch origin
+git checkout v0.5.8      # e.g. roll back to the bridge build
+```
+
+The next completed plan task will be tagged **v0.5.9**.

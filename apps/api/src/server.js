@@ -18,6 +18,7 @@ import {
 import { testAiConnection, GROQ_FREE_MODELS } from '@terraflow/ai';
 import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
 import { createDb } from '@terraflow/database';
+import { sendTelegram, startBridge } from '../../../scripts/telegram-bridge.mjs';
 
 dotenv.config();
 
@@ -106,6 +107,25 @@ class JobService {
       updateJob(job.id, { status, currentStage: null, finishedAt: new Date().toISOString(), durationMs: Date.now() - t0, ...patch });
       if (job.workflowId) markWorkflowRun(job.workflowId, job.id, status);
       this.broadcast(eventName, { jobId: job.id, ...patch });
+      notifyTelegram(job, status, patch);
+    };
+
+    // Push a job-done notification to the user's Telegram chat (best effort,
+    // never blocks the job pipeline; only enabled when TELEGRAM_BOT_TOKEN set).
+    const notifyTelegram = async (job, status, patch) => {
+      if (!process.env.TELEGRAM_BOT_TOKEN) return;
+      const icon = status === 'completed' ? '✅' : status === 'canceled' ? '⏹️' : '❌';
+      const secs = job.durationMs != null ? (job.durationMs / 1000).toFixed(1) : '—';
+      const summary = patch.summary ? `\nOK: ${patch.summary.ok ?? '—'} · Failed: ${patch.summary.failed ?? '—'}` : '';
+      const lines = [
+        `${icon} Job #${job.id} ${status.toUpperCase()}`,
+        `Type: ${job.workflowType}`,
+        `Records: ${job.recordsCreated ?? 0} · Errors: ${job.errors ?? 0}`,
+        `Duration: ${secs}s`,
+        summary,
+      ].filter(Boolean);
+      try { await sendTelegram(lines.join('\n'), { silent: status === 'completed' }); }
+      catch (e) { console.error('telegram notify error:', e.message); }
     };
 
     return runPipeline({ job, stages, env: this.env, emitter, signal: controller.signal })
@@ -874,6 +894,14 @@ app.use((req, res) => res.status(404).json({ error: `No route: ${req.method} ${r
 
 app.listen(PORT, () => {
   console.log(`TerraFlow API listening on http://localhost:${PORT}`);
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    try {
+      startBridge();
+      console.log('  Telegram bridge started — inbox: output/telegram/inbox.jsonl');
+    } catch (e) {
+      console.error('  Telegram bridge failed to start:', e.message);
+    }
+  }
   console.log(`  GET  /api/health | /api/config | /api/status | /api/properties`);
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
   console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test`);
