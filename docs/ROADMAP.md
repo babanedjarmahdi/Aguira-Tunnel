@@ -119,10 +119,13 @@ logs, debug — stays hidden in Basic mode and unlocks in v0.5 (Professional mod
   RTL sheet views on every write, writes in place (no rename → no OneDrive/Excel
   `EPERM`), and exposes a `previewInPlaceSync` dry-run for the add/update/remove
   plan before any write.
-- **Persisted job history**: date, file, duration, success, download result,
-  re-run.
-- **Professional log viewer**: persisted logs + SSE stream, level filters,
-  search, export.
+- **Persisted job history** ✅: date, file, duration, success, download result,
+  re-run — `POST /api/jobs/:id/re-run` clones a terminal job into a fresh run;
+  the Run history page links each job's result file.
+- **Professional log viewer** ✅: persisted logs + SSE stream, level filters,
+  search, export — `GET /api/logs` aggregates every persisted `pushJobLog`
+  entry from `output/jobs/jobs.json` (survives restarts); the Logs page toggles
+  Persisted / Live modes, filters by level, searches, and exports JSON or text.
 - **Plugin contracts solidified**: the built-in adapters are declared as the
   first plugin-shaped implementations (input `read`, output
   `inspect/draft/preview/apply`, AI `extract`) so v0.6's plugin pair has a

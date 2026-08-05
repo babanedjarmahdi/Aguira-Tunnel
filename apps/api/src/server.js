@@ -403,10 +403,61 @@ app.get('/api/jobs', (req, res) => {
   res.json(listJobs(Number(req.query.limit) || 50));
 });
 
+// Aggregated PERSISTED log viewer feed: every log entry the engine ever pushed
+// to a job (from output/jobs/jobs.json), newest first. Supports level filter,
+// free-text search and JSON/text export — the professional log viewer.
+app.get('/api/logs', (req, res) => {
+  const limit = Number(req.query.limit) || 1000;
+  const level = String(req.query.level || '').toLowerCase();
+  const q = String(req.query.q || '').toLowerCase();
+  const jobs = listJobs(2000);
+  const rows = [];
+  for (const job of jobs) {
+    if (!Array.isArray(job.log)) continue;
+    const jobLabel = `#${job.id}${job.workflowType ? ` · ${job.workflowType}` : ''}`;
+    for (const e of job.log) {
+      const message = String(e.message || '');
+      if (level && e.level !== level) continue;
+      if (q && !(message.toLowerCase().includes(q) || jobLabel.toLowerCase().includes(q) || String(job.status).includes(q))) continue;
+      rows.push({ jobId: job.id, jobLabel, status: job.status, level: e.level, message, ts: e.ts });
+    }
+  }
+  rows.sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  res.json({
+    total: rows.length,
+    logs: rows.slice(0, limit),
+    jobs: jobs.length,
+    persistedFrom: jobs[0]?.createdAt || null,
+  });
+});
+
 app.get('/api/jobs/:id', (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: `Job ${req.params.id} not found` });
   res.json(job);
+});
+
+// Re-run an existing (terminal) job: clone its config into a NEW job so run
+// history keeps one row per attempt, then start it. Watch-sync jobs re-run
+// against their stored folder/state paths via the same stages.
+app.post('/api/jobs/:id/re-run', (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: `Job ${req.params.id} not found` });
+  if (job.status === 'running' || job.status === 'queued') {
+    return res.status(409).json({ error: `Job ${job.id} is still ${job.status}` });
+  }
+  const rerun = createJob({
+    workflowType: job.workflowType,
+    workflowId: job.workflowId,
+    watcherId: job.watcherId,
+    steps: job.steps,
+    input: job.input || undefined,
+    destination: job.destination || undefined,
+    ai: job.ai || undefined,
+    autoApply: job.autoApply,
+  });
+  const started = service.run(rerun, job.steps);
+  res.status(201).json({ job, started });
 });
 
 app.post('/api/jobs/:id/run', (req, res) => {

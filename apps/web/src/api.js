@@ -52,6 +52,16 @@ export const runJob = (id, body = {}) => api(`/api/jobs/${id}/run`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
 export const cancelJob = (id) => api(`/api/jobs/${id}/cancel`, { method: 'POST' });
+export const rerunJob = (id) => api(`/api/jobs/${id}/re-run`, { method: 'POST' });
+export const getLogs = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.level) qs.set('level', params.level);
+  if (params.q) qs.set('q', params.q);
+  const s = qs.toString();
+  return api(`/api/logs${s ? `?${s}` : ''}`);
+};
+export const jobDownloadUrl = (id, file) => `/api/jobs/${id}/download${file === 'backup' ? '?file=backup' : ''}`;
 export const buildDraft = (id, body = {}) => api(`/api/jobs/${id}/draft`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });

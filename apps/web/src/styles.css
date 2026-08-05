@@ -512,6 +512,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .log-line { display: flex; gap: 12px; padding: 5px 12px; font-family: var(--mono); font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
 .log-line:hover { background: rgba(255,255,255,0.025); }
 .log-line .ts { color: var(--text-3); flex-shrink: 0; }
+.log-line .job { color: var(--accent); flex-shrink: 0; opacity: 0.85; }
+.segmented button svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
 .log-line .lv { width: 52px; flex-shrink: 0; font-weight: 700; }
 .log-line .lv.info { color: var(--accent); }
 .log-line .lv.error { color: var(--error); }
@@ -572,6 +574,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .muted { color: var(--text-3); }
 .mono { font-family: var(--mono); font-size: 12px; }
 .text-sm { font-size: 12.5px; }
+.text-xs { font-size: 11px; }
 .nowrap { white-space: nowrap; }
 
 /* Toasts */

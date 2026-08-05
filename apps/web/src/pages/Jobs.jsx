@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { History, Play, Square, ExternalLink } from 'lucide-react';
+import { History, Play, Square, ExternalLink, RotateCw, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getJobs, getAllWorkflows, usePoll, useJobEvents, cancelJob } from '../api';
+import { getJobs, getAllWorkflows, usePoll, useJobEvents, cancelJob, rerunJob, jobDownloadUrl } from '../api';
 import { Card, Badge, Button, Empty, Dot, useToast } from '../components/ui';
 
 export default function Jobs({ setStatusMsg }) {
@@ -27,6 +27,16 @@ export default function Jobs({ setStatusMsg }) {
     try {
       await cancelJob(id);
       toast(`Cancel requested for job #${id}`);
+      refresh();
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+  };
+
+  const doRerun = async (id) => {
+    try {
+      const { job, started } = await rerunJob(id);
+      toast(started ? `Re-run started as job #${job.id}` : `New job #${job.id} created but not started`);
       refresh();
     } catch (e) {
       toast(e.message, 'err');
@@ -85,15 +95,26 @@ export default function Jobs({ setStatusMsg }) {
                     </td>
                     <td className="muted text-sm" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {j.input?.sourceDir || (j.workflowType === 'watch-sync' ? 'folder watch' : '—')}
+                      {j.destination?.outputDir ? <><br /><span className="text-xs">{j.destination.outputDir}</span></> : null}
                     </td>
                     <td className="muted">{j.recordsCreated ?? '—'}</td>
                     <td className="muted">{j.errors ?? 0}</td>
                     <td className="muted text-sm">{j.durationMs != null ? `${(j.durationMs / 1000).toFixed(1)}s` : '—'}</td>
                     <td className="muted text-sm">{j.finishedAt ? new Date(j.finishedAt).toLocaleString() : '—'}</td>
                     <td>
-                      {j.status === 'running' || j.status === 'queued'
-                        ? <Button variant="ghost" icon={Square} onClick={() => doCancel(j.id)}>Cancel</Button>
-                        : <span className="muted text-sm">—</span>}
+                      <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
+                        {j.output?.outputPath && (
+                          <a className="btn ghost sm" title="Download result file" href={jobDownloadUrl(j.id)}>
+                            <Download size={14} />
+                          </a>
+                        )}
+                        {(j.status === 'completed' || j.status === 'failed' || j.status === 'canceled') && (
+                          <Button variant="ghost" icon={RotateCw} onClick={() => doRerun(j.id)}>Re-run</Button>
+                        )}
+                        {j.status === 'running' || j.status === 'queued'
+                          ? <Button variant="ghost" icon={Square} onClick={() => doCancel(j.id)}>Cancel</Button>
+                          : null}
+                      </div>
                     </td>
                   </tr>
                 );

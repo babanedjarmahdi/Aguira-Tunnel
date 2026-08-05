@@ -126,8 +126,11 @@ Endpoints today:
 - Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`,
   `POST /api/excel/mapping/profile` (save mapping profile)
 - Jobs: `GET|POST /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
+  `POST /api/jobs/:id/re-run` (clones a terminal job into a fresh run),
   `POST /api/jobs/:id/cancel`, `POST|GET /api/jobs/:id/draft`,
-  `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`
+  `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download` (`?file=backup`)
+- Logs (professional viewer): `GET /api/logs?limit=&level=&q=` — aggregates every
+  persisted `pushJobLog` entry from `output/jobs/jobs.json`, newest first
 - Workflows: `GET|POST /api/workflows`, `POST /api/workflows/import`, `GET|PUT|DELETE /api/workflows/:id`, `POST /api/workflows/:id/run`, `POST /api/workflows/:id/duplicate`, `GET /api/workflows/:id/export`
 - Watchers: `GET|POST /api/watchers`, `GET|PUT|DELETE /api/watchers/:id`, `POST /api/watchers/:id/start` · `/stop` · `/sync` · `/history/clear` (legacy `GET /api/watch` · `POST /api/watch/start|stop` kept)
 - Local path browser: `GET /api/fs/roots` · `GET /api/fs/list?path=...`
