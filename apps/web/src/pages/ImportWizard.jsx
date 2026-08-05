@@ -381,21 +381,25 @@ export default function ImportWizard() {
                   <div className="flex gap-8 mt-16 flex-wrap">
                     {activeWatcher?.runtime?.watching
                       ? <Button variant="primary" icon={Square} onClick={doWatchStop} loading={watchToggling}>Stop watching</Button>
-                      : <Button variant="primary" icon={Radar} onClick={doWatchStart} disabled={!activeWatcher || !activeWatcher.path} loading={watchToggling}>Start watching</Button>}
+                      : <Button variant="primary" icon={Radar} onClick={doWatchStart} disabled={!activeWatcher || !activeWatcher.path || (!activeWatcher.templateId && !activeWatcher.targetPath)} loading={watchToggling}>Start watching</Button>}
                     <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/watchers')}>Manage watchers</Button>
                     <Button variant="ghost" icon={ExternalLink} onClick={() => navigate('/jobs')}>Open Jobs</Button>
                   </div>
-                  <details className="mt-16" style={{ cursor: 'pointer' }}>
-                    <summary className="text-sm" style={{ color: 'var(--text-3)' }}>Watch workflow · choose the file to fill / modify</summary>
-                    <div className="flex-col gap-16 mt-12">
-                      <div className="flex gap-16 flex-wrap">
-                        {WATCH_STEPS.map((s) => (
-                          <label key={s.id} className="row" style={{ cursor: 'pointer' }}>
-                            <input type="checkbox" checked={wSteps.includes(s.id)} onChange={() => toggleWStep(s.id)} />
-                            <span className="text-sm">{s.label}</span>
-                          </label>
-                        ))}
+
+                  {activeWatcher && !activeWatcher.templateId && !activeWatcher.targetPath && (
+                    <div className="card mt-16" style={{ background: 'rgba(251,191,36,0.06)', borderColor: 'rgba(251,191,36,0.3)', padding: 10 }}>
+                      <div className="text-sm" style={{ color: 'var(--warning)' }}>
+                        Choose a destination below — pick a template to create a new filled file, or an existing .xlsx to fill / modify.
                       </div>
+                    </div>
+                  )}
+
+                  <div className="mt-16">
+                    <div className="flex between mb-8">
+                      <h3 className="card-title">Destination & workflow</h3>
+                      {activeWatcher && <Button variant="ghost" icon={Pencil} onClick={openWatchWorkflow} size="sm">Load current</Button>}
+                    </div>
+                    <div className="flex-col gap-16">
                       <div className="flex gap-16 flex-wrap">
                         <Segmented
                           value={wMode}
@@ -418,14 +422,22 @@ export default function ImportWizard() {
                         <input className="input" placeholder={wMode === 'copy' ? 'C:/…/source.xlsx — base for the new file (optional)' : 'C:/…/workbook.xlsx — file to modify (required)'} value={wTargetPath} onChange={(e) => setWTargetPath(e.target.value)} />
                         <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('target')}>Browse</Button>
                       </div>
+                      <div className="flex gap-16 flex-wrap">
+                        {WATCH_STEPS.map((s) => (
+                          <label key={s.id} className="row" style={{ cursor: 'pointer' }}>
+                            <input type="checkbox" checked={wSteps.includes(s.id)} onChange={() => toggleWStep(s.id)} />
+                            <span className="text-sm">{s.label}</span>
+                          </label>
+                        ))}
+                      </div>
                       <div className="flex gap-8">
                         <Button variant="primary" icon={Bookmark} onClick={saveWatchWorkflow} disabled={watchSaving || !activeWatcher}>
                           {watchSaving ? <><Spinner /> Saving…</> : 'Save watch workflow'}
                         </Button>
-                        {activeWatcher && <Button variant="ghost" icon={Pencil} onClick={openWatchWorkflow}>Load current</Button>}
+                        <span className="hint" style={{ alignSelf: 'center' }}>Saves the destination + stages onto this watcher.</span>
                       </div>
                     </div>
-                  </details>
+                  </div>
                 </Card>
                 <Card pad title="When to use watch mode">
                   <div className="flex-col gap-4" style={{ paddingLeft: 18 }}>
