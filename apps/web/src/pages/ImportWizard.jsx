@@ -197,20 +197,18 @@ export default function ImportWizard() {
   const chooseWatchFolder = async (p) => {
     setWatchSaving(true);
     try {
-      let id = activeWatcher?.id;
-      if (id) {
-        await updateWatcher(id, { path: p, type: 'folder' });
-      } else {
-        const w = await createWatcher({
-          name: `Watch ${p.split(/[/\\]/).filter(Boolean).pop() || 'folder'}`,
-          type: 'folder', path: p, debounceMs: 1500, runOnStartup: false, autoApply: true,
-          steps: ['extract', 'ai', 'db'], mode: 'copy',
-        });
-        id = w.id;
-        setActiveWatcherId(w.id);
-      }
-      const st = await startWatcher(id);
-      toast(`Watching ${st.path}`);
+      const leaf = p.split(/[/\\]/).filter(Boolean).pop() || 'folder';
+      const w = await createWatcher({
+        name: `Watch ${leaf}`,
+        type: 'folder', path: p, debounceMs: 1500, runOnStartup: false, autoApply: true,
+        steps: ['extract', 'ai', 'db'], mode: 'copy',
+      });
+      setActiveWatcherId(w.id);
+      setWMode('copy');
+      setWTemplateId('');
+      setWTargetPath('');
+      setWSteps([...w.steps]);
+      toast(`New watch workflow "${w.name}" created — configure it below, then Start`);
     } catch (e) {
       toast(e.message, 'err');
     } finally {
@@ -360,11 +358,15 @@ export default function ImportWizard() {
                       {list.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                     </select>
                     <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('watch')} disabled={watchSaving}>
-                      {watchSaving ? <Spinner /> : 'Choose folder…'}
+                      {watchSaving ? <Spinner /> : 'Create watch workflow…'}
                     </Button>
                   </div>
                   <p className="hint">
-                    Folder: <span className="mono" style={{ color: 'var(--text)' }}>{activeWatcher?.path || '—'}</span>
+                    {activeWatcher ? (
+                      <>Folder: <span className="mono" style={{ color: 'var(--text)' }}>{activeWatcher.path}</span></>
+                    ) : (
+                      'Pick a folder to create a new watch workflow — configure it below, then Start watching.'
+                    )}
                   </p>
                   <div className="flex gap-8 mt-16 flex-wrap">
                     {activeWatcher?.steps.map((s) => <Badge key={s} tone="info">{s}</Badge>)}
