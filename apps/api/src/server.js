@@ -8,6 +8,7 @@ import {
   runPipeline, createEmitter, loadConfig, createJob, getJob, listJobs, updateJob, pushJobLog,
   buildDraft, getDraft, applyDraft, createWatchService, JOBS_DIR, UPLOADS_DIR, MAPPINGS_DIR,
   createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkflow, markWorkflowRun,
+  duplicateWorkflow, exportWorkflow, importWorkflow,
   loadAiSettings, saveAiSettings, AI_DEFAULTS,
   listTemplates, getTemplate, registerTemplate, updateTemplate, deleteTemplate,
   templateVersionPath, activeTemplatePath,
@@ -483,7 +484,19 @@ app.post('/api/workflows', (req, res) => {
       steps: body.steps,
       destination: body.destination || undefined,
       autoApply: !!body.autoApply,
+      input: body.input || undefined,
+      templateId: body.templateId || undefined,
+      ai: body.ai || undefined,
     });
+    res.status(201).json(workflow);
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.post('/api/workflows/import', (req, res) => {
+  try {
+    const workflow = importWorkflow(req.body || {});
     res.status(201).json(workflow);
   } catch (e) {
     res.status(400).json({ error: String(e.message || e) });
@@ -514,25 +527,48 @@ app.post('/api/workflows/:id/run', (req, res) => {
   const workflow = getWorkflow(req.params.id);
   if (!workflow) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
   const body = req.body || {};
+  let templatePath = workflow.destination?.templatePath || undefined;
+  if (workflow.templateId) {
+    try {
+      templatePath = activeTemplatePath(workflow.templateId);
+    } catch {
+      return res.status(400).json({ error: `Workflow template (${workflow.templateId}) not found in the template store` });
+    }
+  }
   const job = createJob({
     workflowType: workflow.workflowType,
     workflowId: workflow.id,
     steps: workflow.steps,
     input: {
-      files: Array.isArray(body.input?.files) ? body.input.files : undefined,
-      sourceDir: body.input?.sourceDir || undefined,
+      files: Array.isArray(body.input?.files) ? body.input.files : workflow.input?.files || undefined,
+      sourceDir: body.input?.sourceDir || workflow.input?.sourceDir || undefined,
     },
     destination: {
-      templatePath: workflow.destination?.templatePath || undefined,
+      templatePath,
+      templateId: workflow.templateId,
       mode: workflow.destination?.mode || 'copy',
       outputPath: workflow.destination?.outputPath || undefined,
     },
+    ai: workflow.ai || undefined,
     autoApply: workflow.autoApply,
   });
   service.broadcast('job:create', { jobId: job.id, job });
   const started = service.run(job, workflow.steps);
   markWorkflowRun(workflow.id, job.id, started ? 'running' : 'queued');
   res.status(201).json({ job, started });
+});
+
+app.post('/api/workflows/:id/duplicate', (req, res) => {
+  const workflow = duplicateWorkflow(req.params.id);
+  if (!workflow) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
+  res.status(201).json(workflow);
+});
+
+app.get('/api/workflows/:id/export', (req, res) => {
+  const exported = exportWorkflow(req.params.id);
+  if (!exported) return res.status(404).json({ error: `Workflow ${req.params.id} not found` });
+  res.set('Content-Disposition', `attachment; filename="workflow-${req.params.id}.json"`);
+  res.json(exported);
 });
 
 // ---- Watch ---------------------------------------------------------------
@@ -649,7 +685,8 @@ app.listen(PORT, () => {
   console.log(`  GET|POST /api/templates | GET|PUT|DELETE /api/templates/:id`);
   console.log(`  POST /api/templates/:id/map | GET /api/templates/:id/versions/:v/download`);
   console.log(`  GET  /api/jobs | /api/jobs/:id | /api/watch`);
-  console.log(`  POST /api/jobs | /api/jobs/:id/run | /api/jobs/:id/draft | /api/jobs/:id/apply`);
+  console.log(`  GET|POST /api/workflows | POST /api/workflows/import | GET|PUT|DELETE /api/workflows/:id`);
+  console.log(`  POST /api/workflows/:id/run | /duplicate | GET /api/workflows/:id/export`);
   console.log(`  GET  /api/jobs/:id/download | /api/jobs/:id/draft`);
   console.log(`  GET  /api/pipeline/events | /api/jobs/events  (SSE)`);
 });

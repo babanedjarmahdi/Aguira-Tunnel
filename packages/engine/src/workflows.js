@@ -26,7 +26,7 @@ function persist() {
 
 const DEFAULT_STEPS = ['extract', 'ai', 'db'];
 
-export function createWorkflow({ name, steps = DEFAULT_STEPS, destination = null, autoApply = false, workflowType = 'basic' } = {}) {
+export function createWorkflow({ name, steps = DEFAULT_STEPS, destination = null, autoApply = false, workflowType = 'basic', input = null, templateId = null, ai = null } = {}) {
   const s = load();
   const id = s.nextId++;
   const now = new Date().toISOString();
@@ -35,6 +35,9 @@ export function createWorkflow({ name, steps = DEFAULT_STEPS, destination = null
     name: name || `Workflow ${id}`,
     workflowType,
     steps: Array.isArray(steps) && steps.length ? steps : DEFAULT_STEPS,
+    input: input || null,
+    templateId: templateId || null,
+    ai: ai || null,
     destination: destination || { mode: 'copy', templatePath: null, outputPath: null },
     autoApply,
     runs: 0,
@@ -66,6 +69,9 @@ export function updateWorkflow(id, patch) {
   if (patch.name !== undefined) w.name = patch.name;
   if (patch.steps !== undefined && Array.isArray(patch.steps) && patch.steps.length) w.steps = patch.steps;
   if (patch.destination !== undefined) w.destination = { ...w.destination, ...patch.destination };
+  if (patch.input !== undefined) w.input = patch.input;
+  if (patch.templateId !== undefined) w.templateId = patch.templateId;
+  if (patch.ai !== undefined) w.ai = patch.ai;
   if (patch.autoApply !== undefined) w.autoApply = !!patch.autoApply;
   w.updatedAt = new Date().toISOString();
   persist();
@@ -92,4 +98,52 @@ export function markWorkflowRun(id, jobId, status) {
   w.updatedAt = w.lastRunAt;
   persist();
   return w;
+}
+
+// Portable definition (no id / run counters) — used for duplicate + export.
+export function exportWorkflow(id) {
+  const w = getWorkflow(id);
+  if (!w) return null;
+  return {
+    name: w.name,
+    workflowType: w.workflowType,
+    steps: [...w.steps],
+    input: w.input ? JSON.parse(JSON.stringify(w.input)) : null,
+    templateId: w.templateId,
+    ai: w.ai ? JSON.parse(JSON.stringify(w.ai)) : null,
+    destination: JSON.parse(JSON.stringify(w.destination)),
+    autoApply: w.autoApply,
+    exportedAt: new Date().toISOString(),
+  };
+}
+
+export function duplicateWorkflow(id) {
+  const w = getWorkflow(id);
+  if (!w) return null;
+  const { name, workflowType, steps, input, templateId, ai, destination, autoApply } = exportWorkflow(id);
+  return createWorkflow({
+    name: `${name} (copy)`,
+    workflowType,
+    steps,
+    input,
+    templateId,
+    ai,
+    destination,
+    autoApply,
+  });
+}
+
+// Restore a definition produced by exportWorkflow (or compatible JSON).
+export function importWorkflow(obj = {}) {
+  if (!obj || typeof obj !== 'object') throw new Error('Invalid workflow JSON');
+  return createWorkflow({
+    name: obj.name,
+    workflowType: obj.workflowType,
+    steps: obj.steps,
+    input: obj.input,
+    templateId: obj.templateId,
+    ai: obj.ai,
+    destination: obj.destination,
+    autoApply: !!obj.autoApply,
+  });
 }

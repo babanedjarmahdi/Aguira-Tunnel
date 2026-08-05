@@ -130,7 +130,10 @@ workbook (backs it up first) — use it deliberately, prefer `fill` otherwise.
 | POST | `/api/jobs/:id/draft` · `GET /api/jobs/:id/draft` | Generate / preview the draft |
 | POST | `/api/jobs/:id/apply` | Apply the reviewed draft (safe execution) |
 | GET | `/api/jobs/:id/download` | Resulting destination file |
-| GET/POST/PUT/DELETE | `/api/workflows...` | Saved workflow definitions + run |
+| GET/POST/PUT/DELETE | `/api/workflows...` | Saved workflow definitions (input + AI + template + stages) + run |
+| POST | `/api/workflows/:id/duplicate` · `/api/workflows/:id/export` | Copy / download a workflow |
+| POST | `/api/workflows/import` | Import a downloaded workflow JSON |
+| GET/POST | `/api/templates` · `/api/templates/:id` | Excel template store (versions + mapping) |
 | GET | `/api/watch` | Watch status |
 | POST | `/api/watch/start` · `/api/watch/stop` | Start / stop folder watching |
 

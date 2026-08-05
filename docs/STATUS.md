@@ -137,8 +137,18 @@ The engine becomes a real workflow engine: Job model, safe execution
   - [x] Store + versioning + API (`GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`,
     `POST /api/templates/:id/map`, version download) + manager UI.
   - [ ] Sheet preview rendered from the stored workbook (headers preview is done via map).
-- [ ] Workflow builder: reusable workflows (input + AI config + template +
+- [x] Workflow builder: reusable workflows (input + AI config + template +
   mapping + output); save/duplicate/export/import/run.
+  - [x] Richer workflow definition: `input` (sourceDir), `templateId`, `ai`
+    (model/temperature) override persisted per workflow; `runPipeline` merges
+    per-job `destination` + `ai` over `loadConfig`.
+  - [x] `duplicateWorkflow`/`exportWorkflow`/`importWorkflow` + API
+    `POST /api/workflows/:id/duplicate`, `GET /api/workflows/:id/export`,
+    `POST /api/workflows/import`; run resolves `templatePath` via
+    `activeTemplatePath(workflow.templateId)`.
+  - [x] Workflows UI: input folder + template dropdown + free-tier AI model +
+    temperature in the create form, per-card Run/Duplicate/Export/Jobs, Import
+    button, rename-in-place, run badge.
 - [ ] Watch jobs as managed items: folder/single-file watches, debounce,
   run-on-startup, per-watcher history/status.
 - [ ] Persisted job history: date, file, duration, success, download result,
@@ -184,14 +194,16 @@ The engine becomes a real workflow engine: Job model, safe execution
 | 2026-08-04 | **Bugfix: black screen after "Continue" (upload → Excel destination)**: `ImportWizard.jsx` used `<Field>` without importing it → `ReferenceError` the moment `inspect` data rendered; added `Field` to the ui import. Rebuilt web → new bundle served on :3000; verified only :3000 listening (no Vite/5173) | `apps/web/src/pages/ImportWizard.jsx` | `43c7eba` |
 | 2026-08-04 | **Reliability fixes**: (a) job cancellation — `AbortController` per running job, `abortableSleep`/`throwIfAborted` in `packages/shared`, signal threaded through `runPipeline` → stages → `provider.enrich`; `POST /api/jobs/:id/cancel` + `job:canceled` SSE + Cancel buttons (Jobs page + wizard progress); (b) Groq 429 — respect `Retry-After`, backoff capped 120s, retries=8 (verified: job #13 waited out the rate limit and completed instead of failing); (c) boot recovery — leftover `running` jobs marked `failed` + their workflow `failed` (verified job #11 → failed, wf #1 → failed). Live tests: job #12 canceled mid-AI; full smoke job #13 upload→complete→draft→apply→file OK; 13/13 tests | `shared/async.js`, `ai/groq.js`, `provider.js`, `engine/orchestrator.js`, `stages.js`, `api/server.js`, `web/api.js`, `Jobs.jsx`, `ImportWizard.jsx` | `254a9d2` |
 | 2026-08-04 | **AI configuration (real) — Part 2 item 2**: persisted settings store `output/settings/ai.json` (`loadAiConfig`/`loadAiSettings`/`saveAiSettings` — saved settings override env, applied live by `loadConfig` each job); `GET|PUT /api/settings/ai` (key masked to hint, never returned; **Groq free-tier model allow-list** `GROQ_FREE_MODELS` enforced on save) + `POST /api/settings/ai/test` (connection probe → latency/model); AIConfig page rewritten as a real panel (free-tier model dropdown, key, baseUrl, temperature, maxTokens, pacing budget, custom system prompt, Save + Test); Professional mode toggle persisted; PRO nav tags; StatusBar corrected to `v0.5 · localhost:3000`. Verified live: save round-trip, `gpt-4o` rejected (400), test connection OK 498 ms, `/api/config` picks up saved model | `engine/config.js`, `ai/groq.js`, `ai/index.js`, `provider.js`, `api/server.js`, `web/api.js`, `pages/AIConfig.jsx`, `components/Layout.jsx`, `App.jsx`, `styles.css`, docs | `f6cbe4b` |
-| 2026-08-04 | **Excel template manager (real) — Part 2 item 3**: engine template store `output/templates/<id>/v<N>/` + `index.json` (`registerTemplate` auto-inspects → sheets/start row/headers; `updateTemplate`/`deleteTemplate`/`templateVersionPath`/`activeTemplatePath`); `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`, `POST /api/templates/:id/map` (reuses `buildMapping`), `GET /api/templates/:id/versions/:v/download`; ExcelTemplates page rewritten (upload workbook, per-template new version, mapping editor with include/remap + validation + autoCreate, download copy, delete, version history). Verified live with the real workbook: register → sheet `العقارات`/startRow 174/14 headers; map → 14 columns valid; save mapping; v2 versioning (mapping kept); download 200 / missing-version 404; delete | `engine/templates.js`, `api/server.js`, `web/api.js`, `pages/ExcelTemplates.jsx`, `styles.css` | (this commit) |
+| 2026-08-04 | **Excel template manager (real) — Part 2 item 3**: engine template store `output/templates/<id>/v<N>/` + `index.json` (`registerTemplate` auto-inspects → sheets/start row/headers; `updateTemplate`/`deleteTemplate`/`templateVersionPath`/`activeTemplatePath`); `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`, `POST /api/templates/:id/map` (reuses `buildMapping`), `GET /api/templates/:id/versions/:v/download`; ExcelTemplates page rewritten (upload workbook, per-template new version, mapping editor with include/remap + validation + autoCreate, download copy, delete, version history). Verified live with the real workbook: register → sheet `العقارات`/startRow 174/14 headers; map → 14 columns valid; save mapping; v2 versioning (mapping kept); download 200 / missing-version 404; delete | `engine/templates.js`, `api/server.js`, `web/api.js`, `pages/ExcelTemplates.jsx`, `styles.css` | `206fde1` |
+| 2026-08-04 | **Workflow builder (real) — Part 2 item 4**: richer workflow definition — `createWorkflow`/`updateWorkflow` accept `input` (sourceDir), `templateId`, `ai` (model/temperature) override; `runPipeline` merges per-job `destination` + `ai` over `loadConfig`; new `duplicateWorkflow`/`exportWorkflow`/`importWorkflow` + API `POST /api/workflows/:id/duplicate`, `GET /api/workflows/:id/export` (JSON attachment), `POST /api/workflows/import`; `POST /api/workflows/:id/run` resolves the workbook via `activeTemplatePath(workflow.templateId)` (400 if the template is missing) and threads `templateId`/`ai`/`input` into the job. Workflows UI rewritten: create form with input folder + template dropdown + free-tier AI model + temperature, per-card Run/Duplicate/Export/Jobs, head Import button, rename-in-place, run badge. Verified live: create → duplicate → export → import round-trip; run created job #15 with template path + AI override + input, completed (151 records); docs updated | `engine/workflows.js`, `jobs.js`, `orchestrator.js`, `index.js`, `api/server.js`, `web/api.js`, `pages/Workflows.jsx` | (this commit) |
 
 ## 3. In progress (current)
 
-- **Excel template manager (real)** done (Part 2 item 3). Commit + push this
-  wave, then continue Part 2.
-- **Next:** Part 2 — Workflow builder (reusable workflows: input + AI config +
-  template + mapping + output; save/duplicate/export/import/run).
+- **Workflow builder** done (Part 2 item 4): richer definitions (input/
+  templateId/ai), duplicate/export/import, run resolves template path.
+  Commit + push this wave, then continue Part 2.
+- **Next:** Part 2 — watch jobs as managed items (folder/single-file watches,
+  debounce, run-on-startup, per-watcher history/status).
 
 ## 4. Not started / next up (backlog order)
 
@@ -218,9 +230,10 @@ The engine becomes a real workflow engine: Job model, safe execution
 - Source dir: `C:\Users\USER\Documents\MEGA UPLOAD\GOOGLE EARTH` (146 `.kmz`);
   smoke test used smallest `156م.kmz` (868 B).
 - Test: `$env:EXCEL_TEMPLATE=...; node --test "packages/excel/test/*.test.js"` → 13/13.
-- Live state: jobs #1–13 (`nextId: 14`) — #3, #7, #13 completed; #12 canceled
-  (live cancel test); #11 failed (boot recovery); workflow #1 "Smoke test flow"
-  (lastStatus failed); mapping profile saved for the template.
+- Live state: jobs #1–15 (`nextId: 16`) — #3, #7, #13, #15 completed; #12
+  canceled (live cancel test); #11 failed (boot recovery); workflows #1 "Smoke
+  test flow" + #2 "Listing import (test)" (runs/status tracked); mapping profile
+  saved for the template; template `t2` registered (14-col mapping).
   API runs on :3000, watch is user-controlled (start/stop via UI).
 - **Groq free tier rate-limits:** during heavy runs the API returns 429; the AI
   stage now respects `Retry-After` and backs off (cap 120s, 8 retries) per record,

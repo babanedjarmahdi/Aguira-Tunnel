@@ -55,6 +55,13 @@ export function resolveInput(config, ctx) {
 //        pipeline:complete, pipeline:error
 export async function runPipeline({ job = null, stages = null, env = process.env, emitter = createEmitter(), signal = null } = {}) {
   const config = loadConfig(env);
+  // Per-job overrides: destination (template/output paths) and AI config
+  // (model/temperature/maxTokens) win over the global runtime config.
+  if (job?.destination) {
+    if (job.destination.templatePath) config.templatePath = job.destination.templatePath;
+    if (job.destination.outputPath) config.excelOutputPath = job.destination.outputPath;
+  }
+  if (job?.ai) config.ai = { ...config.ai, ...job.ai };
   const ctx = buildContext(config, job);
   ctx.signal = signal;
   const names = stages || (job?.steps?.length ? job.steps : defaultStagesFor(job));

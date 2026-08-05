@@ -99,6 +99,11 @@ export const deleteWorkflow = (id) => api(`/api/workflows/${id}`, { method: 'DEL
 export const runWorkflow = (id, body = {}) => api(`/api/workflows/${id}/run`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
+export const duplicateWorkflow = (id) => api(`/api/workflows/${id}/duplicate`, { method: 'POST' });
+export const exportWorkflow = (id) => api(`/api/workflows/${id}/export`);
+export const importWorkflow = (body) => api('/api/workflows/import', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
 
 export async function startPipeline(stages) {
   const res = await fetch('/api/pipeline', {
