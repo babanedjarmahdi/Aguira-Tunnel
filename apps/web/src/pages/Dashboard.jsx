@@ -1,4 +1,4 @@
-import { ArrowRight, UploadCloud, Sparkles, FileSpreadsheet, Play, MapPin, FileText, Database, AlertTriangle, Eye, ChevronRight } from 'lucide-react';
+import { ArrowRight, UploadCloud, Sparkles, FileSpreadsheet, Play, MapPin, FileText, Database, AlertTriangle, Eye, ChevronRight, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getStatus, getWatchers, usePoll, usePipelineEvents } from '../api';
 import { Card, Stat, Badge, Button, Empty, Progress, Dot } from '../components/ui';
@@ -36,6 +36,9 @@ export default function Dashboard({ setStatusMsg }) {
           <Button variant="primary" size="lg" icon={running ? undefined : Play} onClick={() => nav('/import')} disabled={running}>
             {running ? 'Pipeline running…' : 'New import'}
           </Button>
+          <Button variant="ghost" size="lg" icon={Plus} onClick={() => nav('/watchers', { state: { createNew: true } })}>
+            Start new workflow
+          </Button>
           <Button variant="ghost" size="lg" icon={FileSpreadsheet} onClick={() => nav('/templates')}>Browse templates</Button>
         </div>
         <div className="hero-meta">
@@ -44,6 +47,34 @@ export default function Dashboard({ setStatusMsg }) {
           <div className="m"><b>{stats.failed ?? 0}</b>Failures</div>
           <div className="m"><b>{stats.duplicates ?? 0}</b>Duplicates</div>
         </div>
+        {wlist.length > 0 && (
+          <div className="hero-workflows">
+            <div className="flex between">
+              <span className="hero-eyebrow" style={{ marginBottom: 0 }}><Dot tone="ok" /> Watch workflows</span>
+              <Link to="/watchers" style={{ color: 'var(--accent)', fontSize: 12.5, fontWeight: 600 }}>Manage all →</Link>
+            </div>
+            <div className="flex gap-8 mt-12 flex-wrap">
+              {wlist.map((w) => (
+                <div key={w.id} className="card pad hero-wf"
+                  onClick={() => nav('/watchers', { state: { editWatcherId: w.id } })}>
+                  <div className="flex gap-8 align-center">
+                    <Eye size={14} style={{ color: w.runtime?.watching ? 'var(--ok)' : 'var(--text-3)' }} />
+                    <b style={{ fontSize: 13 }}>{w.name}</b>
+                    <Badge tone={w.runtime?.watching ? 'ok' : 'warn'}>
+                      <Dot tone={w.runtime?.watching ? 'ok' : 'err'} />
+                      {w.runtime?.watching ? 'Watching' : 'Stopped'}
+                    </Badge>
+                  </div>
+                  <div className="muted text-sm mono mt-4">{w.path || '—'}</div>
+                  <div className="muted text-sm mt-2">
+                    {w.steps?.join(' · ')}
+                    {w.mode === 'original' ? ' · modify existing' : ' · new file'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <div className="mt-24">

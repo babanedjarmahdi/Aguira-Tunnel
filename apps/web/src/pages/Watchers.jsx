@@ -48,6 +48,7 @@ export default function Watchers() {
   const deepLink = useRef(null);
 
   useEffect(() => {
+    if (loc.state?.createNew) { openCreate(); return; }
     if (loc.state?.editWatcherId && deepLink.current === null) deepLink.current = Number(loc.state.editWatcherId);
   }, [loc.state]);
 

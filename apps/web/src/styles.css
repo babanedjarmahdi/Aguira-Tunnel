@@ -253,6 +253,9 @@ code, pre, .mono { font-family: var(--mono); }
 .hero-sub { color: var(--text-2); font-size: 14px; margin: 8px 0 0; max-width: 560px; }
 .hero-actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
 .hero-meta { display: flex; gap: 26px; margin-top: 24px; flex-wrap: wrap; }
+.hero-workflows { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line, rgba(255,255,255,0.08)); }
+.hero-wf { cursor: pointer; min-width: 230px; padding: 10px 12px; transition: border-color 0.15s, transform 0.15s; }
+.hero-wf:hover { border-color: var(--accent, #22d3ee); transform: translateY(-1px); }
 .hero-meta .m { font-size: 12px; color: var(--text-3); }
 .hero-meta .m b { display: block; font-size: 19px; font-weight: 680; color: var(--text); letter-spacing: -0.02em; }
 
