@@ -501,7 +501,10 @@ GET    /api/v1/pipeline/events         # SSE: jobs + watch events
 `GET /api/jobs/:id/download`, workflow CRUD under
 `/api/workflows`, watch as `POST /api/watch/start` · `POST /api/watch/stop` ·
 `GET /api/watch`, AI settings as `GET|PUT /api/settings/ai` ·
-`POST /api/settings/ai/test` (persisted in `output/settings/ai.json`), and SSE on
+`POST /api/settings/ai/test` (persisted in `output/settings/ai.json`),
+Excel templates as `GET|POST /api/templates` · `GET|PUT|DELETE /api/templates/:id` ·
+`POST /api/templates/:id/map` · `GET /api/templates/:id/versions/:v/download`
+(persisted in `output/templates/`), and SSE on
 `/api/pipeline/events` / `/api/jobs/events`
 (`job:*` plus `watch:change`, `watch:log`, `watch:state`). The `/api/v1/`
 list above is the target contract; the current server is its working

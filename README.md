@@ -115,6 +115,10 @@ workbook (backs it up first) — use it deliberately, prefer `fill` otherwise.
 | GET | `/api/pipeline/events` | SSE: replayed history + live progress events |
 | GET/PUT | `/api/settings/ai` | Read / save AI settings (Groq free-tier models only; key never returned) |
 | POST | `/api/settings/ai/test` | Probe the configured provider/credentials (latency + model) |
+| GET/POST | `/api/templates` | List / register Excel destination templates (versioned) |
+| GET/PUT/DELETE | `/api/templates/:id` | Template detail / config (incl. mapping) / delete |
+| POST | `/api/templates/:id/map` | Build + validate the field→column mapping |
+| GET | `/api/templates/:id/versions/:v/download` | Download a stored template version |
 | GET | `/api/properties` | Property catalog from PostgreSQL |
 | POST | `/api/uploads` | Stage an input file or folder |
 | POST | `/api/excel/inspect` · `/api/excel/mapping` | Understand a workbook; suggest + validate mapping |

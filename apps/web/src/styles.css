@@ -411,6 +411,13 @@ code, pre, .mono { font-family: var(--mono); }
    ============================================================ */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .field label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.mini-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mini-table th, .mini-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.mini-table th { color: var(--text-3); font-weight: 600; font-size: 11px; }
+.link-btn { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 12px; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
+.select.sm { padding: 3px 6px; font-size: 12px; }
+
 .input, .select, .textarea {
   background: var(--bg-soft); border: 1px solid var(--border-strong); color: var(--text);
   border-radius: 10px; padding: 9px 12px; font-size: 13.5px; font-family: inherit;

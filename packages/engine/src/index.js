@@ -1,6 +1,7 @@
 export { runPipeline, engineStages, defaultStagesFor, resolveInput } from './orchestrator.js';
 export { createEmitter, emitLog, emitProgress } from './events.js';
-export { loadConfig, loadAiConfig, loadAiSettings, saveAiSettings, AI_DEFAULTS, ROOT, JSON_FILE, AI_FILE, REPORT_FILE, JOBS_DIR, DRAFTS_DIR, UPLOADS_DIR, MAPPINGS_DIR, SETTINGS_DIR, AI_SETTINGS_FILE, EXCEL_OUT_DIR, BACKUP_DIR } from './config.js';
+export { loadConfig, loadAiConfig, loadAiSettings, saveAiSettings, AI_DEFAULTS, ROOT, JSON_FILE, AI_FILE, REPORT_FILE, JOBS_DIR, DRAFTS_DIR, UPLOADS_DIR, MAPPINGS_DIR, SETTINGS_DIR, AI_SETTINGS_FILE, TEMPLATES_DIR, EXCEL_OUT_DIR, BACKUP_DIR } from './config.js';
+export { listTemplates, getTemplate, registerTemplate, updateTemplate, deleteTemplate, templateVersionPath, activeTemplatePath } from './templates.js';
 export { extractAll, extractFromFiles, extractFile } from './extractor.js';
 export { extractKmlFromKmz, parseKml, readKmzFiles } from './kmz.js';
 export { createJob, getJob, listJobs, updateJob, pushJobLog } from './jobs.js';

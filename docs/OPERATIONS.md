@@ -121,6 +121,8 @@ Endpoints today:
 - Core: `GET /api/health | /api/config | /api/status | /api/properties`
 - AI settings: `GET|PUT /api/settings/ai` (key is masked; free-tier model
   allow-list) · `POST /api/settings/ai/test` (connection probe)
+- Excel templates: `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`,
+  `POST /api/templates/:id/map` (build mapping), `GET /api/templates/:id/versions/:v/download`
 - Uploads & Excel: `POST /api/uploads`, `POST /api/excel/inspect`, `POST /api/excel/mapping`,
   `POST /api/excel/mapping/profile` (save mapping profile)
 - Jobs: `GET|POST /api/jobs`, `GET /api/jobs/:id`, `POST /api/jobs/:id/run`,
@@ -141,6 +143,8 @@ Endpoints today:
 | `output/json/dedupe_report.txt` | What was removed as duplicate and why |
 | `output/excel/CRM_GPT_Immobilier_Employees_V8_10_2_2_filled.xlsx` | Filled workbook copy |
 | `output/excel/job-<id>_filled.xlsx` | Per-job applied workbook (apply step) |
+| `output/settings/ai.json` | Persisted AI settings (Professional mode) |
+| `output/templates/<id>/v<N>/` + `index.json` | Registered Excel templates (versioned) |
 | `output/jobs/jobs.json` | Persisted Job records (run history) |
 | `output/jobs/workflows.json` | Persisted workflow definitions |
 | `output/jobs/job-<id>/` | Per-job artifacts: `properties_ai.json`, `draft.json` |

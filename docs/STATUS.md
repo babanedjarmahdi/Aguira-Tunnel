@@ -134,6 +134,9 @@ The engine becomes a real workflow engine: Job model, safe execution
   - [ ] Estimated cost & time per run (cosmetic estimate, not critical).
 - [ ] Excel template manager: upload workbook, sheet preview, mapping editor
   (rename/ignore/add columns), validation rules, version history.
+  - [x] Store + versioning + API (`GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`,
+    `POST /api/templates/:id/map`, version download) + manager UI.
+  - [ ] Sheet preview rendered from the stored workbook (headers preview is done via map).
 - [ ] Workflow builder: reusable workflows (input + AI config + template +
   mapping + output); save/duplicate/export/import/run.
 - [ ] Watch jobs as managed items: folder/single-file watches, debounce,
@@ -180,14 +183,15 @@ The engine becomes a real workflow engine: Job model, safe execution
 | 2026-08-04 | **Docs-alignment pass done (1.9)**: VISION, ROADMAP, ARCHITECTURE_PLAN, DECISIONS (D18–D24), PLAN, ARCHITECTURE, STANDARD_JSON (no-op), DATA_MODEL, OPERATIONS, README aligned to the v0.4 workflow-engine reality | `docs/*.md`, `README.md` | `25d557e` |
 | 2026-08-04 | **Bugfix: black screen after "Continue" (upload → Excel destination)**: `ImportWizard.jsx` used `<Field>` without importing it → `ReferenceError` the moment `inspect` data rendered; added `Field` to the ui import. Rebuilt web → new bundle served on :3000; verified only :3000 listening (no Vite/5173) | `apps/web/src/pages/ImportWizard.jsx` | `43c7eba` |
 | 2026-08-04 | **Reliability fixes**: (a) job cancellation — `AbortController` per running job, `abortableSleep`/`throwIfAborted` in `packages/shared`, signal threaded through `runPipeline` → stages → `provider.enrich`; `POST /api/jobs/:id/cancel` + `job:canceled` SSE + Cancel buttons (Jobs page + wizard progress); (b) Groq 429 — respect `Retry-After`, backoff capped 120s, retries=8 (verified: job #13 waited out the rate limit and completed instead of failing); (c) boot recovery — leftover `running` jobs marked `failed` + their workflow `failed` (verified job #11 → failed, wf #1 → failed). Live tests: job #12 canceled mid-AI; full smoke job #13 upload→complete→draft→apply→file OK; 13/13 tests | `shared/async.js`, `ai/groq.js`, `provider.js`, `engine/orchestrator.js`, `stages.js`, `api/server.js`, `web/api.js`, `Jobs.jsx`, `ImportWizard.jsx` | `254a9d2` |
-| 2026-08-04 | **AI configuration (real) — Part 2 item 2**: persisted settings store `output/settings/ai.json` (`loadAiConfig`/`loadAiSettings`/`saveAiSettings` — saved settings override env, applied live by `loadConfig` each job); `GET|PUT /api/settings/ai` (key masked to hint, never returned; **Groq free-tier model allow-list** `GROQ_FREE_MODELS` enforced on save) + `POST /api/settings/ai/test` (connection probe → latency/model); AIConfig page rewritten as a real panel (free-tier model dropdown, key, baseUrl, temperature, maxTokens, pacing budget, custom system prompt, Save + Test); Professional mode toggle persisted; PRO nav tags; StatusBar corrected to `v0.5 · localhost:3000`. Verified live: save round-trip, `gpt-4o` rejected (400), test connection OK 498 ms, `/api/config` picks up saved model | `engine/config.js`, `ai/groq.js`, `ai/index.js`, `provider.js`, `api/server.js`, `web/api.js`, `pages/AIConfig.jsx`, `components/Layout.jsx`, `App.jsx`, `styles.css`, docs | (this commit) |
+| 2026-08-04 | **AI configuration (real) — Part 2 item 2**: persisted settings store `output/settings/ai.json` (`loadAiConfig`/`loadAiSettings`/`saveAiSettings` — saved settings override env, applied live by `loadConfig` each job); `GET|PUT /api/settings/ai` (key masked to hint, never returned; **Groq free-tier model allow-list** `GROQ_FREE_MODELS` enforced on save) + `POST /api/settings/ai/test` (connection probe → latency/model); AIConfig page rewritten as a real panel (free-tier model dropdown, key, baseUrl, temperature, maxTokens, pacing budget, custom system prompt, Save + Test); Professional mode toggle persisted; PRO nav tags; StatusBar corrected to `v0.5 · localhost:3000`. Verified live: save round-trip, `gpt-4o` rejected (400), test connection OK 498 ms, `/api/config` picks up saved model | `engine/config.js`, `ai/groq.js`, `ai/index.js`, `provider.js`, `api/server.js`, `web/api.js`, `pages/AIConfig.jsx`, `components/Layout.jsx`, `App.jsx`, `styles.css`, docs | `f6cbe4b` |
+| 2026-08-04 | **Excel template manager (real) — Part 2 item 3**: engine template store `output/templates/<id>/v<N>/` + `index.json` (`registerTemplate` auto-inspects → sheets/start row/headers; `updateTemplate`/`deleteTemplate`/`templateVersionPath`/`activeTemplatePath`); `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`, `POST /api/templates/:id/map` (reuses `buildMapping`), `GET /api/templates/:id/versions/:v/download`; ExcelTemplates page rewritten (upload workbook, per-template new version, mapping editor with include/remap + validation + autoCreate, download copy, delete, version history). Verified live with the real workbook: register → sheet `العقارات`/startRow 174/14 headers; map → 14 columns valid; save mapping; v2 versioning (mapping kept); download 200 / missing-version 404; delete | `engine/templates.js`, `api/server.js`, `web/api.js`, `pages/ExcelTemplates.jsx`, `styles.css` | (this commit) |
 
 ## 3. In progress (current)
 
-- **AI configuration (real)** done (Part 2 item 2). Commit + push this wave,
-  then continue Part 2.
-- **Next:** Part 2 — Excel template manager (workbook upload, sheet preview,
-  mapping editor with rename/ignore/add, version history).
+- **Excel template manager (real)** done (Part 2 item 3). Commit + push this
+  wave, then continue Part 2.
+- **Next:** Part 2 — Workflow builder (reusable workflows: input + AI config +
+  template + mapping + output; save/duplicate/export/import/run).
 
 ## 4. Not started / next up (backlog order)
 

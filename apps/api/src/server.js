@@ -9,6 +9,8 @@ import {
   buildDraft, getDraft, applyDraft, createWatchService, JOBS_DIR, UPLOADS_DIR, MAPPINGS_DIR,
   createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkflow, markWorkflowRun,
   loadAiSettings, saveAiSettings, AI_DEFAULTS,
+  listTemplates, getTemplate, registerTemplate, updateTemplate, deleteTemplate,
+  templateVersionPath, activeTemplatePath,
 } from '@terraflow/engine';
 import { testAiConnection, GROQ_FREE_MODELS } from '@terraflow/ai';
 import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
@@ -260,6 +262,65 @@ app.post('/api/settings/ai/test', async (req, res) => {
     apiKey: body.apiKey || saved.apiKey,
   });
   res.json(result);
+});
+
+// ---- Excel templates (Professional mode) ----------------------------------
+app.get('/api/templates', (req, res) => {
+  res.json({ templates: listTemplates() });
+});
+
+app.post('/api/templates', async (req, res) => {
+  const { name, file } = req.body || {};
+  try {
+    const template = await registerTemplate({ name, filePath: file?.path });
+    res.status(201).json({ template });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get('/api/templates/:id', (req, res) => {
+  const template = getTemplate(req.params.id);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+  res.json({ template });
+});
+
+app.put('/api/templates/:id', async (req, res) => {
+  try {
+    const template = await updateTemplate(req.params.id, req.body || {});
+    res.json({ template });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/templates/:id', (req, res) => {
+  try {
+    res.json(deleteTemplate(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get('/api/templates/:id/versions/:v/download', (req, res) => {
+  try {
+    res.download(templateVersionPath(req.params.id, req.params.v));
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
+// Build the grounded field->column mapping for the active workbook
+// (reuses the wizard's mapping engine; returns validation + autoCreate).
+app.post('/api/templates/:id/map', async (req, res) => {
+  const template = getTemplate(req.params.id);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+  try {
+    const result = await buildMapping({ templatePath: activeTemplatePath(req.params.id), profilesDir: MAPPINGS_DIR });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.get('/api/status', (req, res) => res.json(service.status()));
@@ -585,6 +646,8 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/health | /api/config | /api/status | /api/properties`);
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
   console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test`);
+  console.log(`  GET|POST /api/templates | GET|PUT|DELETE /api/templates/:id`);
+  console.log(`  POST /api/templates/:id/map | GET /api/templates/:id/versions/:v/download`);
   console.log(`  GET  /api/jobs | /api/jobs/:id | /api/watch`);
   console.log(`  POST /api/jobs | /api/jobs/:id/run | /api/jobs/:id/draft | /api/jobs/:id/apply`);
   console.log(`  GET  /api/jobs/:id/download | /api/jobs/:id/draft`);

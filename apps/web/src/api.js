@@ -16,7 +16,7 @@ export const getStatus = () => api('/api/status');
 export const getProperties = (limit = 1000) => api(`/api/properties?limit=${limit}`);
 
 // ---- Uploads -------------------------------------------------------------
-export async function uploadKmz(file) {
+export async function uploadFile(file) {
   const res = await fetch(`/api/uploads?name=${encodeURIComponent(file.name)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
@@ -29,6 +29,7 @@ export async function uploadKmz(file) {
   }
   return res.json();
 }
+export const uploadKmz = uploadFile;
 
 // ---- Excel inspect / mapping ---------------------------------------------
 export const inspectExcel = (body = {}) => api('/api/excel/inspect', {
@@ -70,6 +71,21 @@ export const updateAiSettings = (body) => api('/api/settings/ai', {
 export const testAiConnection = (body = {}) => api('/api/settings/ai/test', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
+
+// ---- Excel templates ------------------------------------------------------
+export const getTemplates = () => api('/api/templates');
+export const getTemplateDetail = (id) => api(`/api/templates/${id}`);
+export const createTemplate = (body) => api('/api/templates', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const updateTemplate = (id, body) => api(`/api/templates/${id}`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const deleteTemplate = (id) => api(`/api/templates/${id}`, { method: 'DELETE' });
+export const mapTemplate = (id) => api(`/api/templates/${id}/map`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+});
+export const templateDownloadUrl = (id, version) => `/api/templates/${id}/versions/${version}/download`;
 
 // ---- Workflows ------------------------------------------------------------
 export const getWorkflows = () => api('/api/workflows');

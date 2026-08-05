@@ -18,6 +18,7 @@ export const UPLOADS_DIR = path.join(ROOT, 'output', 'uploads');
 export const MAPPINGS_DIR = path.join(ROOT, 'output', 'mappings');
 export const SETTINGS_DIR = path.join(ROOT, 'output', 'settings');
 export const AI_SETTINGS_FILE = path.join(SETTINGS_DIR, 'ai.json');
+export const TEMPLATES_DIR = path.join(ROOT, 'output', 'templates');
 
 // Env-configurable paths. Defaults replicate the original scripts.
 export function loadConfig(env = process.env) {
