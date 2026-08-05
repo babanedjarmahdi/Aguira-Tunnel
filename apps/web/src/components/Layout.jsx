@@ -1,4 +1,4 @@
-import { LayoutDashboard, UploadCloud, Workflow, Sparkles, FileSpreadsheet, Settings, TerminalSquare, Info, Bell, Search, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, UploadCloud, Workflow, Sparkles, FileSpreadsheet, Eye, Settings, TerminalSquare, Info, Bell, Search, ChevronDown } from 'lucide-react';
 import Logo from './Logo';
 import { Dot } from './ui';
 
@@ -8,6 +8,7 @@ export const NAV = [
   { id: '/workflows', label: 'Workflows', icon: Workflow },
   { id: '/ai', label: 'AI Configuration', icon: Sparkles, pro: true },
   { id: '/templates', label: 'Excel Templates', icon: FileSpreadsheet, pro: true },
+  { id: '/watchers', label: 'Watchers', icon: Eye, pro: true },
 ];
 export const NAV_BOTTOM = [
   { id: '/settings', label: 'Settings', icon: Settings, pro: true },

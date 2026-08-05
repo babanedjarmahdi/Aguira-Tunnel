@@ -60,6 +60,7 @@ export async function runPipeline({ job = null, stages = null, env = process.env
   if (job?.destination) {
     if (job.destination.templatePath) config.templatePath = job.destination.templatePath;
     if (job.destination.outputPath) config.excelOutputPath = job.destination.outputPath;
+    if (job.destination.originalPath) config.originalPath = job.destination.originalPath;
   }
   if (job?.ai) config.ai = { ...config.ai, ...job.ai };
   const ctx = buildContext(config, job);

@@ -7,4 +7,5 @@ export { extractKmlFromKmz, parseKml, readKmzFiles } from './kmz.js';
 export { createJob, getJob, listJobs, updateJob, pushJobLog } from './jobs.js';
 export { createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkflow, markWorkflowRun, duplicateWorkflow, exportWorkflow, importWorkflow } from './workflows.js';
 export { buildDraft, getDraft, applyDraft, readJobRecords, jobWorkDir, jobAiPath, jobDraftPath } from './draft.js';
-export { createWatchService, runWatcher } from './watch.js';
+export { createWatchService, runWatcher, createWatcherManager } from './watch.js';
+export { createWatcher, getWatcher, listWatchers, updateWatcher, deleteWatcher, pushWatcherHistory, clearWatcherHistory } from './watchers.js';

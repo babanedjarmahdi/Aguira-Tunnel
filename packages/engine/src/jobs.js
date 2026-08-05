@@ -26,13 +26,14 @@ function persist() {
   fs.writeFileSync(jobsFile(), JSON.stringify(store, null, 2), 'utf8');
 }
 
-export function createJob({ workflowType = 'kmz-ai-excel', input = null, destination = null, steps = ['extract', 'ai', 'draft'], autoApply = false, workflowId = null, ai = null }) {
+export function createJob({ workflowType = 'kmz-ai-excel', input = null, destination = null, steps = ['extract', 'ai', 'draft'], autoApply = false, workflowId = null, watcherId = null, ai = null }) {
   const s = load();
   const id = s.nextId++;
   const now = new Date().toISOString();
   const job = {
     id,
     workflowId,
+    watcherId,
     workflowType,
     steps,
     input,

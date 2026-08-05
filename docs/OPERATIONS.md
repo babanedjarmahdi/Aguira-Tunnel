@@ -129,7 +129,8 @@ Endpoints today:
   `POST /api/jobs/:id/cancel`, `POST|GET /api/jobs/:id/draft`,
   `POST /api/jobs/:id/apply`, `GET /api/jobs/:id/download`
 - Workflows: `GET|POST /api/workflows`, `POST /api/workflows/import`, `GET|PUT|DELETE /api/workflows/:id`, `POST /api/workflows/:id/run`, `POST /api/workflows/:id/duplicate`, `GET /api/workflows/:id/export`
-- Watch: `GET /api/watch`, `POST /api/watch/start`, `POST /api/watch/stop`
+- Watchers: `GET|POST /api/watchers`, `GET|PUT|DELETE /api/watchers/:id`, `POST /api/watchers/:id/start` · `/stop` · `/sync` · `/history/clear` (legacy `GET /api/watch` · `POST /api/watch/start|stop` kept)
+- Local path browser: `GET /api/fs/roots` · `GET /api/fs/list?path=...`
 - Events: `GET /api/pipeline/events | /api/jobs/events` (SSE, `?jobId=` filter; includes `job:canceled`)
 
 ---

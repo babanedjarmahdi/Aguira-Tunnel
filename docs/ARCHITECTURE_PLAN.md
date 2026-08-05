@@ -507,7 +507,11 @@ Excel templates as `GET|POST /api/templates` · `GET|PUT|DELETE /api/templates/:
 (persisted in `output/templates/`), workflow building as `POST /api/workflows`
 (richer definitions: `input` sourceDir, `templateId`, `ai` override) ·
 `POST /api/workflows/:id/run` · `POST /api/workflows/:id/duplicate` ·
-`GET /api/workflows/:id/export` · `POST /api/workflows/import`, and SSE on
+`GET /api/workflows/:id/export` · `POST /api/workflows/import`, managed
+watchers as `GET|POST /api/watchers` · `GET|PUT|DELETE /api/watchers/:id` ·
+`POST /api/watchers/:id/start|stop|sync|history/clear` (persisted in
+`output/jobs/watchers.json`; per-watcher workflow + destination file) ·
+`GET /api/fs/roots` · `GET /api/fs/list` for local path picking, and SSE on
 `/api/pipeline/events` / `/api/jobs/events`
 (`job:*` plus `watch:change`, `watch:log`, `watch:state`). The `/api/v1/`
 list above is the target contract; the current server is its working

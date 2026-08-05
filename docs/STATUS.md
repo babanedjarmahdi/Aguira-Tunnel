@@ -149,8 +149,25 @@ The engine becomes a real workflow engine: Job model, safe execution
   - [x] Workflows UI: input folder + template dropdown + free-tier AI model +
     temperature in the create form, per-card Run/Duplicate/Export/Jobs, Import
     button, rename-in-place, run badge.
-- [ ] Watch jobs as managed items: folder/single-file watches, debounce,
+- [x] Watch jobs as managed items: folder/single-file watches, debounce,
   run-on-startup, per-watcher history/status.
+  - [x] Persisted Watcher store `output/jobs/watchers.json`
+    (`createWatcher`/`updateWatcher`/`deleteWatcher`/`pushWatcherHistory`,
+    history capped at 20) + `createWatcherManager` (one debounced watch service
+    per watcher, per-watcher run-on-startup boot, pending re-sync while busy).
+  - [x] Watcher workflow settings: own stages, AI override, auto-apply, and a
+    destination workbook (registered template's active version **or** an
+    explicit file path, copy vs modify-original); `sync` builds the job with
+    `destination` (`templatePath` via `activeTemplatePath`, or `originalPath`)
+    + `ai`, merged per-job by `runPipeline`; history records status/records on
+    job end (`JobService.run` returns the settled promise).
+  - [x] API: `GET|POST /api/watchers`, `GET|PUT|DELETE /api/watchers/:id`,
+    `POST /api/watchers/:id/start|stop|sync|history/clear`; legacy `/api/watch*`
+    kept. Local path browser `GET /api/fs/roots` + `GET /api/fs/list`.
+  - [x] Watchers page (PRO): create/edit form with **folder/file picker**
+    (server-side explorer modal), stages editor, destination selector
+    (template or explicit file + browse, copy/original), AI override; per-card
+    Start/Stop/Sync now/Edit/Delete, run history table + clear.
 - [ ] Persisted job history: date, file, duration, success, download result,
   re-run.
 - [ ] Professional log viewer: persisted logs + SSE, level filters, search, export.
@@ -195,15 +212,16 @@ The engine becomes a real workflow engine: Job model, safe execution
 | 2026-08-04 | **Reliability fixes**: (a) job cancellation — `AbortController` per running job, `abortableSleep`/`throwIfAborted` in `packages/shared`, signal threaded through `runPipeline` → stages → `provider.enrich`; `POST /api/jobs/:id/cancel` + `job:canceled` SSE + Cancel buttons (Jobs page + wizard progress); (b) Groq 429 — respect `Retry-After`, backoff capped 120s, retries=8 (verified: job #13 waited out the rate limit and completed instead of failing); (c) boot recovery — leftover `running` jobs marked `failed` + their workflow `failed` (verified job #11 → failed, wf #1 → failed). Live tests: job #12 canceled mid-AI; full smoke job #13 upload→complete→draft→apply→file OK; 13/13 tests | `shared/async.js`, `ai/groq.js`, `provider.js`, `engine/orchestrator.js`, `stages.js`, `api/server.js`, `web/api.js`, `Jobs.jsx`, `ImportWizard.jsx` | `254a9d2` |
 | 2026-08-04 | **AI configuration (real) — Part 2 item 2**: persisted settings store `output/settings/ai.json` (`loadAiConfig`/`loadAiSettings`/`saveAiSettings` — saved settings override env, applied live by `loadConfig` each job); `GET|PUT /api/settings/ai` (key masked to hint, never returned; **Groq free-tier model allow-list** `GROQ_FREE_MODELS` enforced on save) + `POST /api/settings/ai/test` (connection probe → latency/model); AIConfig page rewritten as a real panel (free-tier model dropdown, key, baseUrl, temperature, maxTokens, pacing budget, custom system prompt, Save + Test); Professional mode toggle persisted; PRO nav tags; StatusBar corrected to `v0.5 · localhost:3000`. Verified live: save round-trip, `gpt-4o` rejected (400), test connection OK 498 ms, `/api/config` picks up saved model | `engine/config.js`, `ai/groq.js`, `ai/index.js`, `provider.js`, `api/server.js`, `web/api.js`, `pages/AIConfig.jsx`, `components/Layout.jsx`, `App.jsx`, `styles.css`, docs | `f6cbe4b` |
 | 2026-08-04 | **Excel template manager (real) — Part 2 item 3**: engine template store `output/templates/<id>/v<N>/` + `index.json` (`registerTemplate` auto-inspects → sheets/start row/headers; `updateTemplate`/`deleteTemplate`/`templateVersionPath`/`activeTemplatePath`); `GET|POST /api/templates`, `GET|PUT|DELETE /api/templates/:id`, `POST /api/templates/:id/map` (reuses `buildMapping`), `GET /api/templates/:id/versions/:v/download`; ExcelTemplates page rewritten (upload workbook, per-template new version, mapping editor with include/remap + validation + autoCreate, download copy, delete, version history). Verified live with the real workbook: register → sheet `العقارات`/startRow 174/14 headers; map → 14 columns valid; save mapping; v2 versioning (mapping kept); download 200 / missing-version 404; delete | `engine/templates.js`, `api/server.js`, `web/api.js`, `pages/ExcelTemplates.jsx`, `styles.css` | `206fde1` |
-| 2026-08-04 | **Workflow builder (real) — Part 2 item 4**: richer workflow definition — `createWorkflow`/`updateWorkflow` accept `input` (sourceDir), `templateId`, `ai` (model/temperature) override; `runPipeline` merges per-job `destination` + `ai` over `loadConfig`; new `duplicateWorkflow`/`exportWorkflow`/`importWorkflow` + API `POST /api/workflows/:id/duplicate`, `GET /api/workflows/:id/export` (JSON attachment), `POST /api/workflows/import`; `POST /api/workflows/:id/run` resolves the workbook via `activeTemplatePath(workflow.templateId)` (400 if the template is missing) and threads `templateId`/`ai`/`input` into the job. Workflows UI rewritten: create form with input folder + template dropdown + free-tier AI model + temperature, per-card Run/Duplicate/Export/Jobs, head Import button, rename-in-place, run badge. Verified live: create → duplicate → export → import round-trip; run created job #15 with template path + AI override + input, completed (151 records); docs updated | `engine/workflows.js`, `jobs.js`, `orchestrator.js`, `index.js`, `api/server.js`, `web/api.js`, `pages/Workflows.jsx` | (this commit) |
+| 2026-08-04 | **Workflow builder (real) — Part 2 item 4**: richer workflow definition — `createWorkflow`/`updateWorkflow` accept `input` (sourceDir), `templateId`, `ai` (model/temperature) override; `runPipeline` merges per-job `destination` + `ai` over `loadConfig`; new `duplicateWorkflow`/`exportWorkflow`/`importWorkflow` + API `POST /api/workflows/:id/duplicate`, `GET /api/workflows/:id/export` (JSON attachment), `POST /api/workflows/import`; `POST /api/workflows/:id/run` resolves the workbook via `activeTemplatePath(workflow.templateId)` (400 if the template is missing) and threads `templateId`/`ai`/`input` into the job. Workflows UI rewritten: create form with input folder + template dropdown + free-tier AI model + temperature, per-card Run/Duplicate/Export/Jobs, head Import button, rename-in-place, run badge. Verified live: create → duplicate → export → import round-trip; run created job #15 with template path + AI override + input, completed (151 records); docs updated | `engine/workflows.js`, `jobs.js`, `orchestrator.js`, `index.js`, `api/server.js`, `web/api.js`, `pages/Workflows.jsx` | `d248222` |
+| 2026-08-05 | **Managed watchers (real) — Part 2 item 5**: persisted Watcher store (`output/jobs/watchers.json`) + `createWatcherManager` (folder **or single-file** watch, debounce, run-on-startup boot, pending re-sync, per-watcher history); watcher workflow settings (own stages, AI override, destination workbook = template active version or explicit file path, copy vs modify-original) — `sync` builds the job with `destination.templatePath`/`originalPath` + `ai`, merged per-job in `runPipeline` (added `originalPath` merge); `JobService.run` now returns the settled promise so history records the real end status; API `GET|POST /api/watchers`, `GET|PUT|DELETE /api/watchers/:id`, `POST /api/watchers/:id/start|stop|sync|history/clear` (legacy `/api/watch*` kept) + local path browser `GET /api/fs/roots|/api/fs/list`; Watchers PRO page (create/edit form with folder/file picker modal, stages editor, destination selector, AI override, Start/Stop/Sync now, history table + clear). Verified live: fs roots/list, create→start→sync→history (`completed`, records), PUT update, destination templatePath + originalPath carried into jobs, clear, delete. (Debug fix: `run()` was missing `return` before the pipeline promise chain — `await service.run` resolved `undefined` and history logged `failed` even though jobs completed.) | `engine/watchers.js`, `watch.js`, `jobs.js`, `orchestrator.js`, `index.js`, `api/server.js`, `web/api.js`, `pages/Watchers.jsx`, `components/PathBrowser.jsx`, `App.jsx`, `Layout.jsx`, `styles.css` | (this commit) |
 
 ## 3. In progress (current)
 
-- **Workflow builder** done (Part 2 item 4): richer definitions (input/
-  templateId/ai), duplicate/export/import, run resolves template path.
-  Commit + push this wave, then continue Part 2.
-- **Next:** Part 2 — watch jobs as managed items (folder/single-file watches,
-  debounce, run-on-startup, per-watcher history/status).
+- **Managed watchers** done (Part 2 item 5): persisted watchers with own
+  workflow (stages/AI/destination workbook), folder/file picker, start/stop/
+  sync, run history. Commit + push this wave, then continue Part 2.
+- **Next:** Part 2 — persisted job history (date, file, duration, success,
+  download result, re-run) + professional log viewer.
 
 ## 4. Not started / next up (backlog order)
 
@@ -230,10 +248,12 @@ The engine becomes a real workflow engine: Job model, safe execution
 - Source dir: `C:\Users\USER\Documents\MEGA UPLOAD\GOOGLE EARTH` (146 `.kmz`);
   smoke test used smallest `156م.kmz` (868 B).
 - Test: `$env:EXCEL_TEMPLATE=...; node --test "packages/excel/test/*.test.js"` → 13/13.
-- Live state: jobs #1–15 (`nextId: 16`) — #3, #7, #13, #15 completed; #12
-  canceled (live cancel test); #11 failed (boot recovery); workflows #1 "Smoke
-  test flow" + #2 "Listing import (test)" (runs/status tracked); mapping profile
-  saved for the template; template `t2` registered (14-col mapping).
+- Live state: jobs #1–23 (`nextId: 24`) — #3, #7, #13, #15, #16–#23 completed
+  (extract/watch-sync runs); #12 canceled (live cancel test); #11 failed (boot
+  recovery); workflows #1 "Smoke test flow" + #2 "Listing import (test)";
+  watcher #1 "Source KMZ watch" (folder, extract+ai+db, copy → template t2,
+  history cleared, runOnStartup off); mapping profile saved for the template;
+  template `t2` registered (14-col mapping).
   API runs on :3000, watch is user-controlled (start/stop via UI).
 - **Groq free tier rate-limits:** during heavy runs the API returns 429; the AI
   stage now respects `Retry-After` and backs off (cap 120s, 8 retries) per record,

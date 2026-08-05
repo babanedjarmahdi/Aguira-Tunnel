@@ -63,6 +63,24 @@ export const getWatch = () => api('/api/watch');
 export const watchStart = () => api('/api/watch/start', { method: 'POST' });
 export const watchStop = () => api('/api/watch/stop', { method: 'POST' });
 
+// ---- Managed watchers ------------------------------------------------------
+export const getWatchers = () => api('/api/watchers');
+export const createWatcher = (body) => api('/api/watchers', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const updateWatcher = (id, body) => api(`/api/watchers/${id}`, {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+});
+export const deleteWatcher = (id) => api(`/api/watchers/${id}`, { method: 'DELETE' });
+export const startWatcher = (id) => api(`/api/watchers/${id}/start`, { method: 'POST' });
+export const stopWatcher = (id) => api(`/api/watchers/${id}/stop`, { method: 'POST' });
+export const syncWatcher = (id) => api(`/api/watchers/${id}/sync`, { method: 'POST' });
+export const clearWatcherHistory = (id) => api(`/api/watchers/${id}/history/clear`, { method: 'POST' });
+
+// ---- Local path browser ----------------------------------------------------
+export const getFsRoots = () => api('/api/fs/roots');
+export const listFs = (p) => api(`/api/fs/list?path=${encodeURIComponent(p || '~')}`);
+
 // ---- AI settings ----------------------------------------------------------
 export const getAiSettings = () => api('/api/settings/ai');
 export const updateAiSettings = (body) => api('/api/settings/ai', {

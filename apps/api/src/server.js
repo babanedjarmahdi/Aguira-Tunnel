@@ -2,13 +2,15 @@ import dotenv from 'dotenv';
 import { EventEmitter } from 'events';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import {
   runPipeline, createEmitter, loadConfig, createJob, getJob, listJobs, updateJob, pushJobLog,
-  buildDraft, getDraft, applyDraft, createWatchService, JOBS_DIR, UPLOADS_DIR, MAPPINGS_DIR,
+  buildDraft, getDraft, applyDraft, createWatchService, createWatcherManager, JOBS_DIR, UPLOADS_DIR, MAPPINGS_DIR,
   createWorkflow, getWorkflow, listWorkflows, updateWorkflow, deleteWorkflow, markWorkflowRun,
   duplicateWorkflow, exportWorkflow, importWorkflow,
+  createWatcher, getWatcher, listWatchers, updateWatcher, deleteWatcher, clearWatcherHistory,
   loadAiSettings, saveAiSettings, AI_DEFAULTS,
   listTemplates, getTemplate, registerTemplate, updateTemplate, deleteTemplate,
   templateVersionPath, activeTemplatePath,
@@ -106,19 +108,22 @@ class JobService {
       this.broadcast(eventName, { jobId: job.id, ...patch });
     };
 
-    runPipeline({ job, stages, env: this.env, emitter, signal: controller.signal })
-      .then(({ summary }) => finish('completed', { summary }, 'job:end'))
+    return runPipeline({ job, stages, env: this.env, emitter, signal: controller.signal })
+      .then(({ summary }) => {
+        finish('completed', { summary }, 'job:end');
+        return { status: 'completed', jobId: job.id, summary };
+      })
       .catch((err) => {
         if (err?.name === 'AbortError') {
           const msg = 'Canceled by user';
           pushJobLog(job.id, { level: 'warn', message: msg });
           finish('canceled', { error: msg }, 'job:canceled');
-        } else {
-          const msg = String(err && (err.stack || err.message) || err);
-          finish('failed', { error: msg }, 'job:error');
+          return { status: 'canceled', jobId: job.id, error: msg };
         }
+        const msg = String(err && (err.stack || err.message) || err);
+        finish('failed', { error: msg }, 'job:error');
+        return { status: 'failed', jobId: job.id, error: msg };
       });
-    return true;
   }
 
   applyStageCounters(jobId, stage, result) {
@@ -604,6 +609,121 @@ app.post('/api/watch/stop', (req, res) => {
   res.json(watchService.status());
 });
 
+// ---- File browser (local-first path picking) ------------------------------
+// A small server-side explorer so the UI can pick absolute paths for watchers
+// (folders/files) and destination workbooks. Local app, same machine.
+app.get('/api/fs/roots', (req, res) => {
+  const home = os.homedir();
+  const roots = [];
+  const push = (name, p) => { if (p && fs.existsSync(p)) roots.push({ name, path: p }); };
+  for (const d of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    const p = `${d}:\\`;
+    if (fs.existsSync(p)) roots.push({ name: `${d}:\\`, path: p });
+  }
+  push('Desktop', path.join(home, 'Desktop'));
+  push('Documents', path.join(home, 'Documents'));
+  push('Downloads', path.join(home, 'Downloads'));
+  push('Home', home);
+  push('Source KMZ dir', process.env.SOURCE_KMZ_DIR);
+  res.json({ roots, home });
+});
+
+app.get('/api/fs/list', (req, res) => {
+  const target = String(req.query.path || '');
+  let resolved = target;
+  if (!resolved || resolved === '~') resolved = os.homedir();
+  try {
+    const st = fs.statSync(resolved);
+    if (!st.isDirectory()) return res.status(400).json({ error: `Not a directory: ${resolved}` });
+    const entries = fs.readdirSync(resolved, { withFileTypes: true })
+      .map((d) => {
+        let size = 0;
+        if (d.isFile()) { try { size = fs.statSync(path.join(resolved, d.name)).size; } catch { /* ignore */ } }
+        return {
+          name: d.name,
+          type: d.isDirectory() ? 'dir' : d.isFile() ? 'file' : 'other',
+          size,
+          kmz: d.isFile() && d.name.toLowerCase().endsWith('.kmz'),
+          xlsx: d.isFile() && /\.xlsx?$/i.test(d.name),
+        };
+      })
+      .sort((a, b) => (a.type === 'dir' ? -1 : 1) - (b.type === 'dir' ? -1 : 1) || a.name.localeCompare(b.name));
+    const parent = path.dirname(resolved);
+    res.json({ path: resolved, parent, entries });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+// ---- Managed watchers (first-class items) --------------------------------
+// Watchers persist in output/jobs/watchers.json; each has its own debounced
+// watch service, run-on-startup flag and run history. On a change batch a
+// watch-sync job runs extract → ai → db using the watcher's config.
+const watcherManager = createWatcherManager({
+  log: (msg) => {
+    console.log(`[watch] ${msg}`);
+    service.broadcast('watch:log', { message: msg });
+  },
+  createJob: (opts) => createJob(opts),
+  runJob: (job) => service.run(job, job.steps),
+});
+watcherManager.boot();
+
+app.get('/api/watchers', (req, res) => res.json(watcherManager.statusList()));
+
+app.post('/api/watchers', (req, res) => {
+  const w = createWatcher(req.body || {});
+  let started = null;
+  if (w.runOnStartup && w.path) started = watcherManager.start(w.id);
+  res.status(201).json(started ? { ...w, runtime: started } : watcherManager.statusOf(w.id));
+});
+
+app.get('/api/watchers/:id', (req, res) => {
+  const w = watcherManager.statusOf(req.params.id);
+  if (!w) return res.status(404).json({ error: `Watcher ${req.params.id} not found` });
+  res.json(w);
+});
+
+app.put('/api/watchers/:id', (req, res) => {
+  const w = updateWatcher(req.params.id, req.body || {});
+  if (!w) return res.status(404).json({ error: `Watcher ${req.params.id} not found` });
+  res.json(watcherManager.statusOf(w.id));
+});
+
+app.delete('/api/watchers/:id', (req, res) => {
+  watcherManager.stop(req.params.id);
+  const ok = deleteWatcher(req.params.id);
+  if (!ok) return res.status(404).json({ error: `Watcher ${req.params.id} not found` });
+  res.json({ ok: true });
+});
+
+app.post('/api/watchers/:id/start', (req, res) => {
+  const r = watcherManager.start(req.params.id);
+  if (!r.ok) return res.status(400).json({ error: r.error || 'Cannot start watcher' });
+  service.broadcast('watch:state', { watching: true, watcherId: Number(req.params.id) });
+  res.json(watcherManager.statusOf(req.params.id));
+});
+
+app.post('/api/watchers/:id/stop', (req, res) => {
+  watcherManager.stop(req.params.id);
+  service.broadcast('watch:state', { watching: false, watcherId: Number(req.params.id) });
+  res.json(watcherManager.statusOf(req.params.id));
+});
+
+app.post('/api/watchers/:id/sync', (req, res) => {
+  const w = getWatcher(req.params.id);
+  if (!w) return res.status(404).json({ error: `Watcher ${req.params.id} not found` });
+  const r = watcherManager.syncNow(w.id);
+  if (!r.ok) return res.status(400).json({ error: r.error });
+  res.json({ ok: true, job: 'queued', watcherId: w.id });
+});
+
+app.post('/api/watchers/:id/history/clear', (req, res) => {
+  const ok = clearWatcherHistory(req.params.id);
+  if (!ok) return res.status(404).json({ error: `Watcher ${req.params.id} not found` });
+  res.json({ ok: true });
+});
+
 // ---- Properties (read from Postgres) -------------------------------------
 app.get('/api/properties', async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 1000);
@@ -685,6 +805,9 @@ app.listen(PORT, () => {
   console.log(`  GET|POST /api/templates | GET|PUT|DELETE /api/templates/:id`);
   console.log(`  POST /api/templates/:id/map | GET /api/templates/:id/versions/:v/download`);
   console.log(`  GET  /api/jobs | /api/jobs/:id | /api/watch`);
+  console.log(`  GET|POST /api/watchers | GET|PUT|DELETE /api/watchers/:id`);
+  console.log(`  POST /api/watchers/:id/start | /stop | /sync | /history/clear`);
+  console.log(`  GET /api/fs/roots | /api/fs/list  (local path browser)`);
   console.log(`  GET|POST /api/workflows | POST /api/workflows/import | GET|PUT|DELETE /api/workflows/:id`);
   console.log(`  POST /api/workflows/:id/run | /duplicate | GET /api/workflows/:id/export`);
   console.log(`  GET  /api/jobs/:id/download | /api/jobs/:id/draft`);

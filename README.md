@@ -134,6 +134,9 @@ workbook (backs it up first) — use it deliberately, prefer `fill` otherwise.
 | POST | `/api/workflows/:id/duplicate` · `/api/workflows/:id/export` | Copy / download a workflow |
 | POST | `/api/workflows/import` | Import a downloaded workflow JSON |
 | GET/POST | `/api/templates` · `/api/templates/:id` | Excel template store (versions + mapping) |
+| GET/POST/PUT/DELETE | `/api/watchers...` | Managed watch items (own workflow + destination file, history) |
+| POST | `/api/watchers/:id/start` · `/stop` · `/sync` | Start / stop / force a watcher sync |
+| GET | `/api/fs/roots` · `/api/fs/list` | Local path browser for picking folders/files |
 | GET | `/api/watch` | Watch status |
 | POST | `/api/watch/start` · `/api/watch/stop` | Start / stop folder watching |
 
