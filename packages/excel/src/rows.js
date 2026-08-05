@@ -136,3 +136,151 @@ export function computeInPlaceRows(ws, records) {
   }
   return { startRow, lastRow: row - 1, rows };
 }
+
+const syncKey = (p) => `${p.sourceFile}@${p.placemarkIndex ?? 0}`;
+
+// Sync row math (watch mode): reconcile the workbook with the folder contents.
+//   prevState: { [sourceFile@placemarkIndex]: rowNumber } persisted after the
+//   previous sync, so rows are identified, updated in place and removed when
+//   their KMZ is deleted from the watched folder — instead of always appending.
+//   records:   ALL extracted records (ai may be null — those are left untouched).
+// Returns rows to write (updates in place + new appends), row deletions (to
+// splice top-down so shifting is safe) and the next state mapping.
+export function computeInPlaceSyncRows(ws, records, prevState = {}) {
+  const startRow = findStartRow(ws);
+  const recordsByKey = new Map(records.map((p) => [syncKey(p), p]));
+
+  const updates = [];    // { row, key, p }  existing state rows to rewrite in place
+  const addCandidates = []; // { key, p }   present records with ai, no state row yet
+  for (const [key, p] of recordsByKey) {
+    if (!p.ai) continue; // nothing to write — leave the old row untouched
+    const row = prevState[key];
+    if (Number.isInteger(row) && row >= 4 && row < startRow) updates.push({ row, key, p });
+    else addCandidates.push({ key, p });
+  }
+
+  // Rows whose source KMZ no longer exists in the folder get deleted.
+  const deletions = [];
+  for (const [key, row] of Object.entries(prevState)) {
+    if (!recordsByKey.has(key) && Number.isInteger(row) && row >= 4 && row < startRow) {
+      deletions.push(row);
+    }
+  }
+
+  // Snapshot the existing data block (4..startRow-1) to fingerprint unmanaged
+  // rows, so rows written by an earlier run (before sync state existed) are
+  // adopted instead of duplicated on the first sync.
+  const dataRows = [];
+  for (let r = 4; r < startRow; r++) {
+    const a = ws.getCell(`A${r}`).text.trim();
+    const b = ws.getCell(`B${r}`).text.trim();
+    const d = ws.getCell(`D${r}`).text.trim();
+    const e = ws.getCell(`E${r}`).value;
+    const f = ws.getCell(`F${r}`).value;
+    dataRows.push({ row: r, a, b, d, e, f, isPipelineRow: a !== '' || b !== '' || d !== '' || e != null || f != null });
+  }
+
+  const rowFp = (dr) => `${dr.b}|${dr.d}|${String(dr.e ?? '')}|${String(dr.f ?? '')}`;
+  const recFp = (p, ai) => `${ai.property_type || ''}|${locationDisplay(ai, p)}|${String(ai.area_m2 ?? p.areaM2 ?? '')}|${String(formatPrice(ai) ?? '')}`;
+
+  const managed = new Set([...updates.map((u) => u.row), ...deletions]);
+  const free = dataRows.filter((dr) => dr.isPipelineRow && !managed.has(dr.row));
+  const used = new Set();
+  const adopted = [];
+  for (const cand of [...addCandidates]) {
+    const fp = recFp(cand.p, cand.p.ai);
+    const match = free.find((dr) => !used.has(dr.row) && rowFp(dr) === fp);
+    if (!match) continue;
+    used.add(match.row);
+    adopted.push({ row: match.row, key: cand.key, p: cand.p });
+    addCandidates.splice(addCandidates.indexOf(cand), 1);
+  }
+
+  // Shift update/adopted rows up for each row deleted below them.
+  for (const d of deletions) {
+    for (const u of updates) if (u.row > d) u.row -= 1;
+    for (const a of adopted) if (a.row > d) a.row -= 1;
+  }
+
+  // The append block starts after the last remaining data row.
+  let nextRow = 4;
+  for (const dr of dataRows) {
+    if (deletions.includes(dr.row)) continue;
+    let shift = 0;
+    for (const d of deletions) if (d < dr.row) shift += 1;
+    if (dr.row - shift >= nextRow) nextRow = dr.row - shift + 1;
+  }
+
+  // ID counters come from the rows that remain after deletion.
+  const counters = {};
+  for (const dr of dataRows) {
+    if (deletions.includes(dr.row) || !dr.b) continue;
+    const mil = typeof dr.f === 'number' ? Math.round(dr.f / 1e6) : 0;
+    const key = `${typePrefix(dr.b)}|${dr.e}|${mil}`;
+    counters[key] = (counters[key] || 0) + 1;
+  }
+
+  const todaySerial = Math.floor(excelDateSerial(new Date()));
+  const buildCells = (p, row) => {
+    const ai = p.ai;
+    const display = formatPrice(ai);
+    return {
+      B: ai.property_type || null,
+      C: statusValue(ai),
+      D: locationDisplay(ai, p),
+      E: ai.area_m2 ?? p.areaM2 ?? null,
+      F: display ? (/^\d+$/.test(display) ? Number(display) : display) : null,
+      G: ai.owner_name || null,
+      H: SELLER,
+      I: ai.phone ? String(ai.phone) : null,
+      J: buildNotes(ai),
+      K: todaySerial,
+      L: row - 3,
+      M: null,
+      N: null,
+    };
+  };
+
+  const state = {};
+  const rows = [];
+  for (const u of updates) {
+    state[u.key] = u.row;
+    rows.push({ row: u.row, keepId: true, cells: buildCells(u.p, u.row) });
+  }
+  for (const a of adopted) {
+    state[a.key] = a.row;
+    rows.push({ row: a.row, keepId: true, cells: buildCells(a.p, a.row) });
+  }
+
+  const appends = [];
+  for (const cand of addCandidates) {
+    const ai = cand.p.ai;
+    const type = ai.property_type || '';
+    const area = ai.area_m2 ?? cand.p.areaM2 ?? null;
+    const prefix = typePrefix(type);
+    const mil = priceMils(formatPrice(ai));
+    const ckey = `${prefix}|${area}|${mil}`;
+    const count = (counters[ckey] || 0) + 1;
+    counters[ckey] = count;
+    const suffix = count > 1 ? String.fromCharCode(64 + count - 1) : '';
+    const id = `${prefix}${area ?? ''}${mil}${suffix}`;
+    appends.push({ row: nextRow, key: cand.key, p: cand.p, id });
+    nextRow++;
+  }
+  for (const ap of appends) {
+    state[ap.key] = ap.row;
+    rows.push({ row: ap.row, keepId: false, id: ap.id, cells: buildCells(ap.p, ap.row) });
+  }
+
+  const lastRow = nextRow - 1;
+  return {
+    deletions,
+    rows,
+    state,
+    updated: updates.length + adopted.length,
+    removed: deletions.length,
+    appended: appends.length,
+    startRow: 4,
+    lastRow,
+  };
+}

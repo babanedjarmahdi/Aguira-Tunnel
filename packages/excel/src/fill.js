@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import ExcelJS from 'exceljs';
 import { SHEET_NAME } from './mapping.js';
-import { computeCopyRows, computeInPlaceRows, excelDateSerial, findStartRow } from './rows.js';
+import { computeCopyRows, computeInPlaceRows, computeInPlaceSyncRows, excelDateSerial, findStartRow } from './rows.js';
 
 export { excelDateSerial, findStartRow };
 
@@ -30,6 +30,21 @@ function clearCellForFill(ws, row, col) {
     }
   }
   cell.value = null;
+}
+
+// Deleting rows via worksheet.spliceRows moves shared-formula cells around but
+// does NOT fix their master/clone references, so saving fails with "Shared
+// Formula master must exist above and or left of clone". Promote every shared
+// formula (masters and clones alike) to a standalone formula before splicing.
+function unshareSharedFormulas(ws) {
+  ws.eachRow((row) => {
+    row.eachCell((cell) => {
+      const v = cell.value;
+      if (v && typeof v === 'object' && v.formula && (v.ref || v.sharedFormula)) {
+        cell.value = { formula: cell.formula };
+      }
+    });
+  });
 }
 
 function openSheet(templatePath) {
@@ -63,6 +78,17 @@ function writeRows(ws, computed) {
   }
 }
 
+// Sync writer: updates/adopted rows keep their existing id (A) and added-on
+// date (K); appended rows get a fresh id + today's date.
+function writeSyncRows(ws, rows) {
+  for (const { row, keepId, id, cells } of rows) {
+    if (!keepId) ws.getCell(`A${row}`).value = id;
+    const cols = keepId ? ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'N'] : ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'N'];
+    for (const col of cols) ws.getCell(`${col}${row}`).value = cells[col];
+    clearCellForFill(ws, row, 'M');
+  }
+}
+
 // ---- Copy-based fill (creates a NEW output file, never touches the template) ----
 export async function fillCopy({ templatePath, outputPath, records, autoCreate }) {
   if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templatePath}`);
@@ -87,6 +113,43 @@ export async function fillInPlace({ originalPath, records, backupDir, autoCreate
   writeRows(ws, computed);
   await workbook.xlsx.writeFile(originalPath);
   return { outputPath: originalPath, backup, rows: records.length, startRow: computed.startRow, lastRow: computed.lastRow, createdHeaders };
+}
+
+// ---- In-place SYNC fill (watch mode): add/update/remove rows to mirror the folder ----
+// Reconciles the ORIGINAL workbook against the current folder contents using a
+// persisted { [sourceFile@placemarkIndex]: row } state. Rows whose KMZ was
+// deleted are spliced out, existing rows are updated in place (keeping their
+// id + added-on date), and new records are appended with fresh ids. The new
+// state is persisted so the next sync knows which rows belong to which file.
+export async function fillInPlaceSync({ originalPath, records, backupDir, autoCreate, statePath }) {
+  if (!fs.existsSync(originalPath)) throw new Error(`Original not found: ${originalPath}`);
+  let prevState = {};
+  if (statePath && fs.existsSync(statePath)) {
+    try { prevState = JSON.parse(fs.readFileSync(statePath, 'utf8')) || {}; } catch { prevState = {}; }
+  }
+  fs.mkdirSync(backupDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backup = path.join(backupDir, `${path.basename(originalPath, '.xlsx')}_before_fill_${stamp}.xlsx`);
+  fs.copyFileSync(originalPath, backup);
+  const { workbook, ws } = await openSheet(originalPath);
+  const createdHeaders = ensureHeaders(ws, autoCreate);
+  const computed = computeInPlaceSyncRows(ws, records, prevState);
+  if (computed.deletions.length) unshareSharedFormulas(ws);
+  for (const row of [...computed.deletions].sort((a, b) => b - a)) ws.spliceRows(row, 1);
+  writeSyncRows(ws, computed.rows);
+  // Atomic write: never leave the workbook truncated/corrupt on a failed save.
+  const tmp = `${originalPath}.sync.tmp`;
+  await workbook.xlsx.writeFile(tmp);
+  fs.renameSync(tmp, originalPath);
+  if (statePath) {
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(statePath, JSON.stringify(computed.state, null, 2), 'utf8');
+  }
+  return {
+    outputPath: originalPath, backup, statePath,
+    rows: computed.rows.length, updated: computed.updated, removed: computed.removed,
+    appended: computed.appended, lastRow: computed.lastRow, createdHeaders,
+  };
 }
 
 // ---- Draft preview: compute the exact rows that would be written, without writing ----

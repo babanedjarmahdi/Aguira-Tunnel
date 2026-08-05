@@ -3,7 +3,7 @@ import path from 'path';
 import { extractAll, extractFromFiles } from './extractor.js';
 import { createProvider } from '@terraflow/ai';
 import { loadFromDisk } from '@terraflow/database';
-import { fillCopy, fillInPlace } from '@terraflow/excel';
+import { fillCopy, fillInPlace, fillInPlaceSync } from '@terraflow/excel';
 import { abortableSleep, throwIfAborted } from '@terraflow/shared';
 import { EXCEL_OUT_DIR } from './config.js';
 import { emitLog } from './events.js';
@@ -160,8 +160,24 @@ export async function fillStage({ config, emitter, ctx }) {
 }
 
 // ---- In-place fill (writes into the ORIGINAL Excel, with forced backup) ----
-// Port of src/scripts/fill_original.mjs.
+// Port of src/scripts/fill_original.mjs. Watch syncs use the reconcile variant
+// (add/update/remove) so the workbook mirrors the watched folder; manual runs
+// keep the original append behavior.
 export async function fillOriginalStage({ config, emitter, ctx }) {
+  if (ctx.isWatchSync && ctx.excelStatePath) {
+    const all = JSON.parse(fs.readFileSync(ctx.aiPath, 'utf8'));
+    emitLog(emitter, 'info', `Syncing ${all.length} properties into ORIGINAL: ${config.originalPath} (add / update / remove)`);
+    fs.mkdirSync(EXCEL_OUT_DIR, { recursive: true });
+    const result = await fillInPlaceSync({
+      originalPath: config.originalPath,
+      records: all,
+      backupDir: config.backupDir,
+      statePath: ctx.excelStatePath,
+    });
+    emitLog(emitter, 'info', `Backup written: ${result.backup}`);
+    emitLog(emitter, 'info', `Done. Added ${result.appended}, updated ${result.updated}, removed ${result.removed} row(s) (last row ${result.lastRow}) -> ${result.outputPath}`);
+    return result;
+  }
   const data = JSON.parse(fs.readFileSync(ctx.aiPath, 'utf8')).filter((d) => d.ai);
   emitLog(emitter, 'info', `Filling ${data.length} properties into ORIGINAL: ${config.originalPath}`);
   fs.mkdirSync(EXCEL_OUT_DIR, { recursive: true });

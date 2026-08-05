@@ -223,22 +223,17 @@ The engine becomes a real workflow engine: Job model, safe execution
 | 2026-08-05 | **Watch workflow destination required + always visible**: creating a watcher now needs a destination — a registered template or an explicit .xlsx ("choose the destination or create a new file"); guards in the wizard (`saveWatchWorkflow`) and the Watchers page (`save`) block saving a watcher with no `templateId` and no `targetPath`. Destination/workflow editor moved **out of the collapsed `<details>`** — it now renders always-visible in the watch card ("Destination & workflow": Create new file / Modify existing file segmented, required template dropdown, explicit file path + Browse, stages checkboxes, Save watch workflow); amber notice prompts for a destination, and **Start watching is disabled until a destination is set**. Mode labels clarified ("Create new file"/"Modify existing file"); template dropdown reads "— choose a template (required) —". | `pages/ImportWizard.jsx`, `pages/Watchers.jsx` | `1ae4103` |
 | 2026-08-05 | **Dashboard surfaces watch workflows (clickable)**: new "Watch workflows" card lists every watcher (name, status badge Watching/Stopped/Off, folder path, stages + destination summary) — clicking a row navigates to `/watchers` with `state.editWatcherId`, and the Watchers page auto-opens that watcher's edit modal (deep link). "Recent activity" row is now clickable → `/jobs`; Quick actions gained "Watch a folder" → `/watchers` and "Manage workflows" → `/workflows`. Empty state offers "New watch workflow". | `pages/Dashboard.jsx`, `pages/Watchers.jsx` | `850785c` |
 | 2026-08-05 | **Hero shows watch workflows + "Start new workflow"**: the hero section now lists the watch workflows as clickable cards (name, Watching/Stopped badge, folder, stages/destination) — click opens that watcher's editor — plus a "Manage all →" link; new "Start new workflow" hero button goes to `/watchers` with `state.createNew`, which auto-opens the create form. Added `.hero-workflows`/`.hero-wf` CSS. | `pages/Dashboard.jsx`, `pages/Watchers.jsx`, `styles.css` | (this commit) |
-| 2026-08-05 | **Workflow-first reframe — the UI now treats workflows as the unit of work (Part 2, item 5 extension)**: new unified catalog `GET /api/workflows/all` merges one-shot imports + managed watch workflows, type-tagged (`import`/`watch`) and sorted by last activity; `web/api.js` gains `getAllWorkflows`. Dashboard hero rewritten ("Your workflows, one dashboard.") — "Start a new workflow" opens the new **NewWorkflowChooser** modal (Import workflow → `/import`, Watch workflow → `/watchers?createNew`); hero + Workflows card list **all** workflows with type/status badges and "Manage →" affordances; when a run is active a "Running now: \<workflow\> — stage X" banner identifies the exact running workflow (via `getJob(currentJobId)`) with an "Open run" button → `/jobs` (`.hero-running` + `.is-running` highlight CSS). **Workflows.jsx rewritten as the unified hub** (both types, per-type actions: watch → Start/Stop/Sync now/Edit/Delete, import → Run/Duplicate/Export/Delete, rename, JSON import/export, `usePoll(getAllWorkflows)`). **Jobs.jsx rewritten as "Run history"** — every run of any workflow, new clickable Workflow column (`flowLookup` for `import:<id>`/`watch:<id>`, "Open" links back to the right workflow) + Source column. **Layout nav reframed**: Workflows (now 2nd), Import workflow, Watch workflows (PRO). ImportWizard page title "Import workflow"; its watch pane reads as creating a watch workflow ("Manage workflows" link → `/workflows`, "Each watcher is a watch workflow…"). Watchers deep-link state (`createNew`, `editWatcherId`). Verified live: `/api/workflows/all` merges a created import (`[import:6]`) and a created watcher (`[watch:3]`) with type tags; build `index-CPqwsItW.js` served on :3000. | `api/server.js`, `web/api.js`, `pages/Dashboard.jsx`, `pages/Workflows.jsx`, `pages/Jobs.jsx`, `pages/ImportWizard.jsx`, `pages/Watchers.jsx`, `components/Layout.jsx`, `components/NewWorkflowChooser.jsx`, `styles.css`, docs | (this commit) |
+| 2026-08-05 | **Workflow-first reframe — the UI now treats workflows as the unit of work (Part 2, item 5 extension)**: new unified catalog `GET /api/workflows/all` merges one-shot imports + managed watch workflows, type-tagged (`import`/`watch`) and sorted by last activity; `web/api.js` gains `getAllWorkflows`. Dashboard hero rewritten ("Your workflows, one dashboard.") — "Start a new workflow" opens the new **NewWorkflowChooser** modal (Import workflow → `/import`, Watch workflow → `/watchers?createNew`); hero + Workflows card list **all** workflows with type/status badges and "Manage →" affordances; when a run is active a "Running now: \<workflow\> — stage X" banner identifies the exact running workflow (via `getJob(currentJobId)`) with an "Open run" button → `/jobs` (`.hero-running` + `.is-running` highlight CSS). **Workflows.jsx rewritten as the unified hub** (both types, per-type actions: watch → Start/Stop/Sync now/Edit/Delete, import → Run/Duplicate/Export/Delete, rename, JSON import/export, `usePoll(getAllWorkflows)`). **Jobs.jsx rewritten as "Run history"** — every run of any workflow, new clickable Workflow column (`flowLookup` for `import:<id>`/`watch:<id>`, "Open" links back to the right workflow) + Source column. **Layout nav reframed**: Workflows (now 2nd), Import workflow, Watch workflows (PRO). ImportWizard page title "Import workflow"; its watch pane reads as creating a watch workflow ("Manage workflows" link → `/workflows`, "Each watcher is a watch workflow…"). Watchers deep-link state (`createNew`, `editWatcherId`). Verified live: `/api/workflows/all` merges a created import (`[import:6]`) and a created watcher (`[watch:3]`) with type tags; build `index-CPqwsItW.js` served on :3000. | `api/server.js`, `web/api.js`, `pages/Dashboard.jsx`, `pages/Workflows.jsx`, `pages/Jobs.jsx`, `pages/ImportWizard.jsx`, `pages/Watchers.jsx`, `components/Layout.jsx`, `components/NewWorkflowChooser.jsx`, `styles.css`, docs | `d49d1b2` (pushed) |
+| 2026-08-05 | **Watch sync now actually updates the Excel (add / update / remove)**: the watched-folder loop was broken end-to-end — every change re-ran the WHOLE folder through AI (job #28 stuck 15 min) then wrote rows append-only, and watcher #4's destination pointed at a garbage `~$` lock-file path. Fixes: (a) **incremental per-watcher AI cache + row state** in `output/watches/<id>/` — `watch.js` `sync()` now attaches `job.watch {dir, aiPath, excelStatePath}`; `orchestrator.buildContext` routes watch jobs to those persistent paths; `aiStage` resumes from cache so a new file only AIs itself (job #29: 151 cached → 5.8s vs 15 min); (b) **reconciliation fill** — `rows.computeInPlaceSyncRows` (update rows in place by `sourceFile@placemarkIndex`, splice rows whose KMZ vanished, fingerprint-adopt previously-written rows so the first sync doesn't duplicate, fresh ids for new files) + `fill.fillInPlaceSync` (`writeSyncRows` keeps existing id/added-date on updates; persisted `excel-state.json`); (c) **destination correctness** — `buildDestination` for `original` mode now resolves `targetPath` → `originalPath` (was setting `templatePath`), `runPipeline` already merged `destination.originalPath`; `sync()` fails fast with a history entry if the workbook file is missing; (d) **guards** — API `validateWatcherDestination` rejects missing files and Office `~$` lock/temp paths on create/update, `/api/fs/list` filters `~$*` so the browser never offers lock files; (e) **crash fix** — deleting rows via `spliceRows` broke shared formulas on save ("Shared Formula master must exist above and or left of clone for cell M302"); `fill.js` now `unshareSharedFormulas()` before splicing, writes via temp file + atomic rename (never leaves a 0-byte workbook), and backups are timestamped (`*_before_fill_<ts>.xlsx`). Verified live on watcher #4 ("Watch GOOGLE EARTH", 150 KMZ → `CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`): full rebuild `Added 81, updated 70` (job 34), **remove** on deleting `test.kmz` → `removed 1` row, sheet re-saved clean (job 35), **add** on re-adding → `added 1` (job 37), repeated syncs idempotent (`added 0`), and the running watcher auto-synced on the file add (`pending change`) and remove (`remove: test.kmz`) events; workbook valid (318 KB), state `output/watches/4/excel-state.json` 151 entries → 151 unique rows. 18/18 excel tests pass. (Also restored the workbook after an external process truncated it to 0 bytes — recovered from the pristine `1785780680636_…xlsx` copy.) | `excel/rows.js`, `excel/fill.js`, `engine/stages.js`, `engine/orchestrator.js`, `engine/watch.js`, `engine/index.js`, `api/server.js`, `excel/test/rows.test.js`, docs | (this commit) |
 
 ## 3. In progress (current)
 
-- **Workflow-first reframe** (extending Part 2 item 5): the product now treats
-  **workflows as the unit of work** — unified catalog `/api/workflows/all`
-  (import one-shots + watch backgrounds, type-tagged), Dashboard hero + Workflows
-  card listing **all** workflows, a "Running now: \<workflow\>" banner that
-  identifies the exact running workflow and links to its run, `NewWorkflowChooser`
-  modal for starting a new import **or** watch workflow, Workflows page as the
-  unified hub with per-type actions, Jobs page as "Run history" with a clickable
-  workflow column. Committed and pushed.
-- **Note:** the unified list currently surfaces nothing until a workflow exists in
-  the stores — `output/jobs/workflows.json` / `watchers.json` were left empty, so
-  the legacy run (job #27 → workflowId 1) has no persisted definition to show.
-  Re-running any workflow from the hub will repopulate it.
+- **Watch sync = real add/update/remove against the folder (Part 2 item 5, shipped)**: watch
+  mode now keeps the destination workbook mirrored to the watched folder — each sync
+  re-uses a persistent AI cache (`output/watches/<id>/ai.json`) and a persisted
+  row map (`excel-state.json`), updates changed rows in place, appends new ones and
+  splices out rows whose KMZ was deleted; the watcher auto-syncs on folder changes.
+  Committed and pushed.
 - **Next:** Part 2 — persisted job history (date, file, duration, success,
   download result, re-run) + professional log viewer.
 
@@ -263,17 +258,20 @@ The engine becomes a real workflow engine: Job model, safe execution
 - **npm** must be invoked as `npm.cmd` (PowerShell policy blocks `npm.ps1`).
 - **git** needs `$env:PATH += ";C:\Program Files\Git\cmd"` first.
 - Real template: `C:\Users\USER\Desktop\CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`
-  (sheet `العقارات`, header row 3: A معرف العقار … N تاريخ البيع).
-- Source dir: `C:\Users\USER\Documents\MEGA UPLOAD\GOOGLE EARTH` (146 `.kmz`);
-  smoke test used smallest `156م.kmz` (868 B).
-- Test: `$env:EXCEL_TEMPLATE=...; node --test "packages/excel/test/*.test.js"` → 13/13.
-- Live state: jobs #1–23 (`nextId: 24`) — #3, #7, #13, #15, #16–#23 completed
-  (extract/watch-sync runs); #12 canceled (live cancel test); #11 failed (boot
-  recovery); workflows #1 "Smoke test flow" + #2 "Listing import (test)";
-  watcher #1 "Source KMZ watch" (folder, extract+ai+db, copy → template t2,
-  history cleared, runOnStartup off); mapping profile saved for the template;
-  template `t2` registered (14-col mapping).
-  API runs on :3000, watch is user-controlled (start/stop via UI).
+  (sheet `العقارات`, header row 3: A معرف العقار … N تاريخ البيع); pristine backup copy
+  `1785780680636_CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`.
+- Source dir: `C:\Users\USER\Documents\MEGA UPLOAUD\GOOGLE EARTH` (150 `.kmz`, watched by
+  watcher #4 "Watch GOOGLE EARTH"); sync writes into the Desktop workbook.
+- Test: `$env:EXCEL_TEMPLATE=...; node --test "packages/excel/test/*.test.js"` → 18/18.
+- Live state: watcher #4 destination `C:\Users\USER\Desktop\CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`
+  (mode `original`, steps `extract/ai/db/fill:original`, runOnStartup on); per-watcher sync
+  state in `output/watches/4/` (`ai.json` cache + `excel-state.json` row map); jobs #28–#38
+  (watch-syncs) — #34 rebuild, #35 remove, #37 add, #38 auto-sync verified.
+- Earlier live state: jobs #1–23 — #3, #7, #13, #15, #16–#23 completed; #12 canceled
+  (live cancel test); #11 failed (boot recovery); workflows #1 "Smoke test flow" + #2
+  "Listing import (test)"; watcher #1 "Source KMZ watch" (folder, extract+ai+db, copy →
+  template t2); mapping profile saved for the template; template `t2` registered (14-col
+  mapping). API runs on :3000, watch is user-controlled (start/stop via UI).
 - **Groq free tier rate-limits:** during heavy runs the API returns 429; the AI
   stage now respects `Retry-After` and backs off (cap 120s, 8 retries) per record,
   so a run stays `running` longer instead of failing — a single record can wait
@@ -281,6 +279,11 @@ The engine becomes a real workflow engine: Job model, safe execution
 - **Cancel semantics:** `POST /api/jobs/:id/cancel` aborts a running/queued job →
   `status=canceled`, `error="Canceled by user"`; terminal jobs return 409. On
   server restart, leftover `running` jobs are marked `failed` (boot recovery).
+- **⚠️ Watch-sync needs the destination workbook closed in Excel:** if the workbook is
+  open in Excel when a sync tries to write it, the fill fails with `EBUSY` (job #28's
+  original failure). Keep `CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx` closed during
+  watch syncs; failed syncs never corrupt the file anymore (temp-file + atomic rename,
+  timestamped `output/backup/*_before_fill_<ts>.xlsx` backups, fail-fast destination check).
 
 *Companion docs: [README](../README.md) · [ROADMAP.md](ROADMAP.md) ·
 [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) ·

@@ -22,11 +22,27 @@ export function defaultStagesFor(job) {
 }
 
 // Build the per-run context: job-scoped file paths + input source.
+// Watch syncs (job.watch) get PERSISTENT paths: the AI cache and the Excel
+// row-state live in the watcher's own dir so each sync is incremental (only
+// new/changed KMZ hit the AI stage, and the workbook is reconciled against the
+// folder instead of blindly appending).
 function buildContext(config, job) {
   const base = {
     inputFiles: job?.input?.files || null,
     inputSourceDir: job?.input?.sourceDir || null,
   };
+  if (job?.watch) {
+    return {
+      ...base,
+      workDir: jobWorkDir(job.id),
+      jsonPath: path.join(jobWorkDir(job.id), 'properties.json'),
+      aiPath: job.watch.aiPath || path.join(jobWorkDir(job.id), 'properties_ai.json'),
+      reportPath: path.join(jobWorkDir(job.id), 'dedupe_report.txt'),
+      isWatchSync: true,
+      watchDir: job.watch.dir || null,
+      excelStatePath: job.watch.excelStatePath || null,
+    };
+  }
   if (!job) {
     return { ...base, jsonPath: JSON_FILE, aiPath: AI_FILE, reportPath: REPORT_FILE };
   }

@@ -645,6 +645,7 @@ app.get('/api/fs/list', (req, res) => {
     const st = fs.statSync(resolved);
     if (!st.isDirectory()) return res.status(400).json({ error: `Not a directory: ${resolved}` });
     const entries = fs.readdirSync(resolved, { withFileTypes: true })
+      .filter((d) => !d.name.startsWith('~$')) // Office lock files
       .map((d) => {
         let size = 0;
         if (d.isFile()) { try { size = fs.statSync(path.join(resolved, d.name)).size; } catch { /* ignore */ } }
@@ -668,6 +669,16 @@ app.get('/api/fs/list', (req, res) => {
 // Watchers persist in output/jobs/watchers.json; each has its own debounced
 // watch service, run-on-startup flag and run history. On a change batch a
 // watch-sync job runs extract → ai → db using the watcher's config.
+function validateWatcherDestination(body) {
+  if (!body) return null;
+  if (body.templateId) return null; // registered template wins
+  if (!body.targetPath || !String(body.targetPath).trim()) return null;
+  const p = String(body.targetPath).trim();
+  const base = path.basename(p);
+  if (base.startsWith('~$')) return `That is an Office lock/temp file (${base}) — pick the real .xlsx workbook instead.`;
+  if (!fs.existsSync(p)) return `Destination file not found: ${p}`;
+  return null;
+}
 const watcherManager = createWatcherManager({
   log: (msg) => {
     console.log(`[watch] ${msg}`);
@@ -681,6 +692,8 @@ watcherManager.boot();
 app.get('/api/watchers', (req, res) => res.json(watcherManager.statusList()));
 
 app.post('/api/watchers', (req, res) => {
+  const err = validateWatcherDestination(req.body || {});
+  if (err) return res.status(400).json({ error: err });
   const w = createWatcher(req.body || {});
   let started = null;
   if (w.runOnStartup && w.path) started = watcherManager.start(w.id);
@@ -694,6 +707,8 @@ app.get('/api/watchers/:id', (req, res) => {
 });
 
 app.put('/api/watchers/:id', (req, res) => {
+  const err = validateWatcherDestination(req.body || {});
+  if (err) return res.status(400).json({ error: err });
   const w = updateWatcher(req.params.id, req.body || {});
   if (!w) return res.status(404).json({ error: `Watcher ${req.params.id} not found` });
   res.json(watcherManager.statusOf(w.id));

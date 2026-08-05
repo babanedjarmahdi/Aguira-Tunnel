@@ -3,12 +3,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { runPipeline } from './orchestrator.js';
 import { createEmitter } from './events.js';
-import { createJob, getJob } from './jobs.js';
+import { createJob, getJob, updateJob } from './jobs.js';
 import { listWatchers, getWatcher, pushWatcherHistory } from './watchers.js';
 import { activeTemplatePath } from './templates.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../..');
+
+// Persistent per-watcher sync state (AI cache + Excel row mapping) lives here,
+// so each sync is incremental instead of re-enriching the whole folder.
+const WATCHES_DIR = path.join(ROOT, 'output', 'watches');
+export function watcherStateDir(id) {
+  return path.join(WATCHES_DIR, String(id));
+}
 
 // Debounced folder/file watcher. UI-agnostic: the caller decides what to do on
 // sync (create a job, run the pipeline, log). Start/stop is explicit so the
@@ -124,6 +131,26 @@ export function createWatcherManager({ log = console.log, createJob: makeJob, ru
     busy.set(w.id, true);
     const startedAt = new Date().toISOString();
     const destination = buildDestination(w);
+
+    // Fail fast if the destination workbook is missing/broken — otherwise the
+    // whole folder re-runs through AI and only then discovers the file is gone.
+    const dest = destination.mode === 'original' ? destination.originalPath : destination.templatePath;
+    if (dest && !fs.existsSync(dest)) {
+      log(`[watcher #${w.id} ${w.name}] DESTINATION FILE NOT FOUND: ${dest} — sync skipped`);
+      pushWatcherHistory(w.id, {
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        jobId: null,
+        status: 'failed',
+        reason: `destination file not found: ${dest}`,
+        records: 0,
+        files: 0,
+      });
+      busy.set(w.id, false);
+      if (pending.get(w.id)) { pending.set(w.id, false); sync(w, 'pending change'); }
+      return;
+    }
+
     const job = makeJob({
       workflowType: 'watch-sync',
       watcherId: w.id,
@@ -132,6 +159,14 @@ export function createWatcherManager({ log = console.log, createJob: makeJob, ru
       autoApply: w.autoApply,
       destination,
       ai: w.ai || undefined,
+    });
+    const watchDir = watcherStateDir(w.id);
+    updateJob(job.id, {
+      watch: {
+        dir: watchDir,
+        aiPath: path.join(watchDir, 'ai.json'),
+        excelStatePath: path.join(watchDir, 'excel-state.json'),
+      },
     });
     log(`[watcher #${w.id} ${w.name}] SYNC START (${reason}) job #${job.id}`);
     let status = 'failed';
@@ -180,19 +215,34 @@ export function createWatcherManager({ log = console.log, createJob: makeJob, ru
   }
 
   // Resolve the workbook the watcher fills/modifies: a registered template's
-  // active version, an explicit file path, or the global default.
+  // active version, an explicit file path, or the global default. In "modify
+  // existing" mode the explicit path (or the template's active file) is the
+  // file written in place, backed up first.
   function buildDestination(w) {
     const d = { mode: w.mode || 'copy' };
+    const warn = (msg) => log(`[watcher #${w.id} ${w.name}] WARN ${msg}`);
+    if (w.mode === 'original') {
+      if (w.targetPath) {
+        d.originalPath = w.targetPath;
+      } else if (w.templateId) {
+        try {
+          d.originalPath = activeTemplatePath(w.templateId);
+          d.templateId = w.templateId;
+        } catch {
+          warn(`template ${w.templateId} not found — falling back to default workbook`);
+        }
+      }
+      return d;
+    }
     if (w.templateId) {
       try {
         d.templatePath = activeTemplatePath(w.templateId);
         d.templateId = w.templateId;
       } catch {
-        log(`[watcher #${w.id} ${w.name}] WARN template ${w.templateId} not found — falling back to default workbook`);
+        warn(`template ${w.templateId} not found — falling back to default workbook`);
       }
     } else if (w.targetPath) {
-      if (w.mode === 'original') d.originalPath = w.targetPath;
-      else d.templatePath = w.targetPath;
+      d.templatePath = w.targetPath;
     }
     return d;
   }
