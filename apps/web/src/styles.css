@@ -435,6 +435,28 @@ button.link-like:hover { text-decoration: underline; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(6,10,16,0.6); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); width: 640px; max-width: 100%; max-height: 80vh; display: flex; flex-direction: column; padding: 16px; }
+
+/* Job details popup */
+.job-overlay { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background: rgba(6,10,16,0.55); }
+.job-modal { width: 740px; }
+.jd-body { flex: 1; overflow: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 16px; }
+.jd-sec { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-soft); padding: 12px 14px; }
+.jd-sec-title { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+.jd-row { display: flex; gap: 12px; padding: 3px 0; font-size: 12.5px; line-height: 1.5; }
+.jd-label { flex: 0 0 132px; color: var(--text-3); font-size: 11.5px; padding-top: 1px; }
+.jd-value { color: var(--text); word-break: break-word; }
+.jd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
+.jd-error { margin: 0; padding: 10px 12px; border-radius: 8px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow: auto; }
+.jd-logs { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 6px 0; }
+.jd-log { display: flex; gap: 10px; padding: 2px 12px; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; }
+.jd-log-ts { flex: 0 0 auto; color: var(--text-3); }
+.jd-log-msg { color: var(--text-2); word-break: break-word; }
+.jd-log-error .jd-log-msg, .jd-log-err .jd-log-msg { color: #fca5a5; }
+.jd-log-warn .jd-log-msg { color: #fcd34d; }
+.jd-log-ok .jd-log-msg { color: #86efac; }
+tr.job-row { cursor: pointer; }
+tr.job-row:hover td { background: var(--surface-2); }
+
 .path-crumb { color: var(--text-2); font-size: 12.5px; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .path-list { flex: 1; min-height: 240px; max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-soft); }
 .path-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 10px; font-size: 13px; color: var(--text); background: transparent; border: none; cursor: pointer; }

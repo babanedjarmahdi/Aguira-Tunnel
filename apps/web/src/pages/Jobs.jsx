@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { History, Play, Square, ExternalLink, RotateCw, Download } from 'lucide-react';
+import { History, Play, Square, ExternalLink, RotateCw, Download, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getJobs, getAllWorkflows, usePoll, useJobEvents, cancelJob, rerunJob, jobDownloadUrl } from '../api';
 import { Card, Badge, Button, Empty, Dot, useToast } from '../components/ui';
+import JobDetails from '../components/JobDetails';
 
 export default function Jobs({ setStatusMsg }) {
   const toast = useToast();
@@ -10,6 +11,7 @@ export default function Jobs({ setStatusMsg }) {
   const { data: jobs, refresh } = usePoll(() => getJobs(50), 3000);
   const { data: workflows } = usePoll(getAllWorkflows, 6000);
   const [flowLookup, setFlowLookup] = useState({});
+  const [selJob, setSelJob] = useState(null);
 
   useJobEvents((ev) => {
     if (ev.type === 'job:end' || ev.type === 'job:error' || ev.type === 'job:canceled') { setStatusMsg('Job finished.'); refresh(); }
@@ -80,12 +82,12 @@ export default function Jobs({ setStatusMsg }) {
               {list.map((j) => {
                 const flow = flowOf(j);
                 return (
-                  <tr key={j.id}>
+                  <tr key={j.id} className="job-row" onClick={() => setSelJob(j)} title="Click for full job details">
                     <td className="mono">#{j.id}</td>
                     <td><Badge tone={j.status === 'failed' ? 'err' : j.status === 'completed' ? 'ok' : j.status === 'canceled' ? 'warn' : j.status === 'running' ? 'info' : 'warn'}><Dot tone={j.status === 'failed' ? 'err' : j.status === 'completed' ? 'ok' : j.status === 'canceled' ? 'warn' : 'info'} /> {j.status}</Badge></td>
                     <td>
                       {flow ? (
-                        <button className="link-like" onClick={() => openFlow(j)} style={{ fontWeight: 600 }}>
+                        <button className="link-like" onClick={(e) => { e.stopPropagation(); openFlow(j); }} style={{ fontWeight: 600 }}>
                           {flow.name}
                           <ExternalLink size={12} style={{ marginLeft: 4, verticalAlign: 'middle' }} />
                         </button>
@@ -103,16 +105,17 @@ export default function Jobs({ setStatusMsg }) {
                     <td className="muted text-sm">{j.finishedAt ? new Date(j.finishedAt).toLocaleString() : '—'}</td>
                     <td>
                       <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
+                        <Button variant="ghost" size="sm" icon={Info} onClick={(e) => { e.stopPropagation(); setSelJob(j); }}>Details</Button>
                         {j.output?.outputPath && (
-                          <a className="btn ghost sm" title="Download result file" href={jobDownloadUrl(j.id)}>
+                          <a className="btn ghost sm" title="Download result file" href={jobDownloadUrl(j.id)} onClick={(e) => e.stopPropagation()}>
                             <Download size={14} />
                           </a>
                         )}
                         {(j.status === 'completed' || j.status === 'failed' || j.status === 'canceled') && (
-                          <Button variant="ghost" icon={RotateCw} onClick={() => doRerun(j.id)}>Re-run</Button>
+                          <Button variant="ghost" icon={RotateCw} onClick={(e) => { e.stopPropagation(); doRerun(j.id); }}>Re-run</Button>
                         )}
                         {j.status === 'running' || j.status === 'queued'
-                          ? <Button variant="ghost" icon={Square} onClick={() => doCancel(j.id)}>Cancel</Button>
+                          ? <Button variant="ghost" icon={Square} onClick={(e) => { e.stopPropagation(); doCancel(j.id); }}>Cancel</Button>
                           : null}
                       </div>
                     </td>
@@ -122,6 +125,17 @@ export default function Jobs({ setStatusMsg }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {selJob && (
+        <JobDetails
+          job={selJob}
+          flowName={flowOf(selJob)?.name}
+          onClose={() => setSelJob(null)}
+          onCancel={(id) => { doCancel(id); }}
+          onRerun={(id) => { doRerun(id); }}
+          downloadUrl={selJob.output?.outputPath ? jobDownloadUrl(selJob.id) : null}
+        />
       )}
     </div>
   );
