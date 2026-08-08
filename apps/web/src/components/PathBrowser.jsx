@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Folder, FileSpreadsheet, File, ArrowUp, X, ChevronRight } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { getFsRoots, listFs } from '../api';
 import { Button, Field, Spinner } from './ui';
 
@@ -40,7 +41,7 @@ export default function PathBrowser({ mode = 'folder', onPick, onClose }) {
     else if (mode === 'file') onPick(`${path}\\${e.name}`);
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="flex between mb-8">
@@ -85,6 +86,7 @@ export default function PathBrowser({ mode = 'folder', onPick, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

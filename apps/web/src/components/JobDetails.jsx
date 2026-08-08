@@ -1,4 +1,5 @@
 import { X, Download, RotateCw, Square, FolderInput, FolderOutput, ListChecks, AlignLeft } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { Badge, Button, Dot } from './ui';
 
 function Row({ label, value }) {
@@ -29,7 +30,7 @@ export default function JobDetails({ job, flowName, onClose, onCancel, onRerun, 
   const logs = job.log || [];
   const error = job.error || null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay job-overlay" onClick={onClose}>
       <div className="modal job-modal" onClick={(e) => e.stopPropagation()}>
         <div className="flex between mb-16">
@@ -116,6 +117,7 @@ export default function JobDetails({ job, flowName, onClose, onCancel, onRerun, 
           <Button variant="primary" onClick={onClose}>Close</Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

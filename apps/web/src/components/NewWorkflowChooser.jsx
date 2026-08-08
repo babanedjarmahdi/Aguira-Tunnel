@@ -1,10 +1,11 @@
 import { Play, Eye, X, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 
 export default function NewWorkflowChooser({ onClose }) {
   const nav = useNavigate();
   const go = (fn) => () => { onClose && onClose(); fn(); };
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="flex between mb-16">
@@ -33,6 +34,7 @@ export default function NewWorkflowChooser({ onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

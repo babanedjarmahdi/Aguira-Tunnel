@@ -19,7 +19,6 @@ import {
 import { testAiConnection, GROQ_FREE_MODELS } from '@terraflow/ai';
 import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
 import { createDb } from '@terraflow/database';
-import { startBridge } from '../../../scripts/telegram-bridge.mjs';
 
 dotenv.config();
 
@@ -884,14 +883,6 @@ app.use((req, res) => res.status(404).json({ error: `No route: ${req.method} ${r
 
 app.listen(PORT, () => {
   console.log(`TerraFlow API listening on http://localhost:${PORT}`);
-  if (process.env.TELEGRAM_BOT_TOKEN) {
-    try {
-      startBridge();
-      console.log('  Telegram bridge started — inbox: output/telegram/inbox.jsonl');
-    } catch (e) {
-      console.error('  Telegram bridge failed to start:', e.message);
-    }
-  }
   console.log(`  GET  /api/health | /api/config | /api/status | /api/properties`);
   console.log(`  GET  /api/plugins | /api/jobs | /api/jobs/:id | /api/watch`);
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
