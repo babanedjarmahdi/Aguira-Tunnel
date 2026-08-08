@@ -174,6 +174,10 @@ output/              # generated JSON + Excel (git-ignored)
 
 ## Notes
 
+- **Deployment:** TerraFlow is local-first and stateful — it cannot run as a
+  Vercel serverless function. For a public deploy, host the static SPA on Vercel
+  and expose the API on this machine via a tunnel (`VITE_API_URL` at build time).
+  See [docs/OPERATIONS.md §8](docs/OPERATIONS.md).
 - The Groq API key and local paths live in `.env` (git-ignored) — never commit them.
 - The original Excel template is never overwritten by the normal pipeline; the
   pipeline writes a copy (`output/excel/`).

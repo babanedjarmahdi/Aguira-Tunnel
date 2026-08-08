@@ -181,8 +181,8 @@ export function createAiPlugin({ id = 'ai-groq', version = '1.0.0', config = {} 
       id,
       type: 'ai',
       version,
-      name: 'AI extract (Groq)',
-      description: `Provider-agnostic field extraction via ${config.provider || 'groq'} (model: ${config.model || 'default'}).`,
+      name: 'AI extract',
+      description: `Provider-agnostic field extraction via ${config.provider || 'cloud'} (model: ${config.model || 'default'}).`,
       contract: ['extract'],
     },
     async extract(record, prompt, opts = {}) {

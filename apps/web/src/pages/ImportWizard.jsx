@@ -8,6 +8,7 @@ import {
 import {
   uploadKmz, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft, cancelJob,
   useJobEvents, getConfig, usePoll, getWatchers, createWatcher, updateWatcher, startWatcher, stopWatcher, getTemplates,
+  jobDownloadUrl,
 } from '../api';
 import { Button, Badge, Progress, Dot, useToast, Card, Spinner, Segmented, Empty, Field } from '../components/ui';
 import PipelineVisual, { JOB_STAGES } from '../components/PipelineVisual';
@@ -758,7 +759,7 @@ export default function ImportWizard() {
             </Card>
             <Card pad title="Next steps">
               <div className="flex-col gap-8">
-                <a href={`/api/jobs/${jobId}/download`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                <a href={jobDownloadUrl(jobId)} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                   <Button variant="primary" icon={Download} style={{ width: '100%' }}>Download workbook</Button>
                 </a>
                 <Button variant="ghost" icon={UploadCloud} onClick={reset}>New import</Button>

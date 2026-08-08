@@ -1,7 +1,7 @@
 import { Database, Server, Shield, RefreshCcw, Users } from 'lucide-react';
 import { Card, Field, Toggle, Button, Segmented, useToast } from '../components/ui';
 
-export default function Settings() {
+export default function Settings({ mode = 'basic', setMode }) {
   const toast = useToast();
   const save = (what) => toast(`${what} saved`);
 
@@ -24,7 +24,7 @@ export default function Settings() {
             </div>
           </Field>
           <Field label="Interface mode">
-            <Segmented options={[{ value: 'basic', label: 'Basic' }, { value: 'pro', label: 'Professional' }]} value="pro" onChange={() => save('Mode')} />
+            <Segmented options={[{ value: 'basic', label: 'Basic' }, { value: 'pro', label: 'Professional' }]} value={mode} onChange={(m) => { setMode(m); save('Mode'); }} />
           </Field>
           <Field label="Accent color">
             <div className="flex gap-8">
@@ -52,15 +52,15 @@ export default function Settings() {
 
       <Card className="pad mt-24" title="Workspace & data">
         <div className="flex between" style={{ padding: '8px 0' }}>
-          <div><b className="text-sm">Workspace</b><div className="muted text-sm">Shared workspace · babanedjarmahdi</div></div>
+          <div><b className="text-sm">Workspace</b><div className="muted text-sm">Private workspace</div></div>
           <Button variant="ghost" icon={Users} onClick={() => toast('Workspace settings opened')}>Manage</Button>
         </div>
         <div className="flex between" style={{ padding: '8px 0' }}>
-          <div><b className="text-sm">Database</b><div className="muted text-sm">PostgreSQL · localhost · 147 rows</div></div>
+          <div><b className="text-sm">Database</b><div className="muted text-sm">Local store · 147 rows</div></div>
           <Button variant="ghost" icon={Database} onClick={() => toast('Database status opened')}>Status</Button>
         </div>
         <div className="flex between" style={{ padding: '8px 0' }}>
-          <div><b className="text-sm">Server</b><div className="muted text-sm">http://localhost:3000 · SSE events</div></div>
+          <div><b className="text-sm">Server</b><div className="muted text-sm">SSE events enabled</div></div>
           <Button variant="ghost" icon={Server} onClick={() => toast('Server info opened')}>Details</Button>
         </div>
       </Card>

@@ -263,10 +263,10 @@ app.put('/api/settings/ai', (req, res) => {
     patch[k] = AI_NUMERIC_KEYS.includes(k) && body[k] !== '' ? Number(body[k]) : body[k];
   }
   if (patch.provider !== undefined && patch.provider !== 'groq') {
-    return res.status(400).json({ error: `Unsupported AI provider: "${patch.provider}". Supported: groq` });
+    return res.status(400).json({ error: `Unsupported AI provider: "${patch.provider}".` });
   }
   if (patch.model !== undefined && !GROQ_FREE_MODELS.includes(patch.model)) {
-    return res.status(400).json({ error: `Model "${patch.model}" is not on the Groq free tier. Pick one of: ${GROQ_FREE_MODELS.join(', ')}` });
+    return res.status(400).json({ error: `Model "${patch.model}" is not on the free tier. Pick one of: ${GROQ_FREE_MODELS.join(', ')}` });
   }
   if (patch.temperature !== undefined && (Number.isNaN(patch.temperature) || patch.temperature < 0 || patch.temperature > 2)) {
     return res.status(400).json({ error: 'temperature must be a number between 0 and 2' });

@@ -28,12 +28,12 @@ export function Sidebar({ route, go, mode, setMode }) {
       </div>
 
       <div className="nav-label">Workspace</div>
-      {NAV.map((n) => {
+      {NAV.filter((n) => mode === 'pro' || !n.pro).map((n) => {
         const Icon = n.icon;
         return (
           <div key={n.id} className={`nav-item ${route === n.id ? 'active' : ''}`} onClick={() => go(n.id)}>
             <Icon />
-            {n.label}
+            <span>{n.label}</span>
             {n.pro && <span className="pro-tag">PRO</span>}
           </div>
         );
@@ -46,12 +46,12 @@ export function Sidebar({ route, go, mode, setMode }) {
         <button className={mode === 'pro' ? 'on' : ''} onClick={() => setMode('pro')}>Professional</button>
       </div>
 
-      {NAV_BOTTOM.map((n) => {
+      {NAV_BOTTOM.filter((n) => mode === 'pro' || !n.pro).map((n) => {
         const Icon = n.icon;
         return (
           <div key={n.id} className={`nav-item ${route === n.id ? 'active' : ''}`} onClick={() => go(n.id)}>
             <Icon />
-            {n.label}
+            <span>{n.label}</span>
             {n.pro && <span className="pro-tag">PRO</span>}
           </div>
         );
@@ -68,7 +68,7 @@ export function TopBar({ route, provider, connected }) {
       </span>
       <div className="grow" />
       {connected === false && <span className="chip"><Dot tone="err" /> Reconnecting…</span>}
-      <span className="chip"><Dot /> {provider ? `AI: ${provider}` : 'AI: —'}</span>
+      {provider && <span className="chip"><Dot /> AI engine</span>}
       <button className="icon-btn" title="Search"><Search /></button>
       <button className="icon-btn" title="Notifications"><Bell /><span className="ping" /></button>
       <div className="flex gap-8">
@@ -91,7 +91,6 @@ export function StatusBar({ msg, running, connected }) {
       <Dot tone={running ? 'info' : 'ok'} />
       <span className="live">{msg}</span>
       <span className="nowrap">v0.5 · {connected ? 'SSE connected' : 'SSE offline'}</span>
-      <span className="nowrap">localhost:3000</span>
     </footer>
   );
 }

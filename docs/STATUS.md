@@ -204,6 +204,8 @@ The engine becomes a real workflow engine: Job model, safe execution
 
 | Date | What | Files | Commit |
 |---|---|---|---|
+| 2026-08-08 | **Privacy/responsiveness UI pass**: removed "groq"/"Groq" wording from all visible UI (TopBar AI chip now "AI engine", AIConfig provider label "cloud", "Free-tier models only", "OpenAI-compatible endpoint", About "pluggable provider", plugin audit name "AI extract"); removed internal host reveals (StatusBar `localhost:3000` deleted, Settings "Private workspace" / "Local store" / "SSE events enabled"); made the layout responsive (icon-only sidebar ≤1000px, compact topbar/hero/page ≤700px, `.nav-item` labels wrapped in `<span>` so icon-only collapsing works); Basic/Professional mode now actually gates nav + PRO pages (`ProGate`, nav filtering, Settings Segmented wired to `mode`/`setMode`, `.pro-lock`). Web rebuilt and copied to `apps/api/public`. | `components/Layout.jsx`, `pages/AIConfig.jsx`, `pages/About.jsx`, `pages/Settings.jsx`, `App.jsx`, `apps/api/src/server.js`, `engine/plugins.js`, `styles.css`, docs | — |
+| 2026-08-08 | **Restore watcher #4 + full end-to-end verification**: watcher #4 "Watch GOOGLE EARTH" restored in the store (`output/jobs/watchers.json`, id 4, full history, `runOnStartup:true`, `autoApply:false`, steps `extract/ai/db/fill:original`, template `t2`, target `CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`, mode `original`) — root cause of it "not doing its job" was **Postgres down** (`db:"down"` → every sync's `db` stage failed) + `runOnStartup` off. Docker Desktop started, `terraflow_pg` healthy, `/api/health` → `db:"up"`. Server restarted (PID 16632) → watcher auto-started (`runtime.watching:true`); manual sync **job #41 completed** (149 processed, AI 152 OK from cache, DB 152 rows, Excel **Added 82 / updated 70 / removed 0**, last row 255, backup first) + a real folder change triggered **job #42 completed** (pending-change loop). Vercel split-deploy routing fixed: `vercel.json` lives at repo root but project `rootDirectory` is `apps/web` so the edge never read it (`routes` blank on the server config → native 404s on deep links) — added `apps/web/vercel.json` with SPA `rewrites` `/(.*)` → `/index.html`; redeployed prod, now `/`, `/jobs`, `/watchers`, `/ai`, `/settings`, `/properties` all return 200 SPA. Deployed SPA confirmed to contain the fixed UI (`AI engine`, `Private workspace`, `pro-lock`, no `localhost:3000`) and to use the tunnel base `https://mins-playback-motels-bolt.trycloudflare.com`. Full chain verified: Vercel SPA → cloudflare tunnel → local API :3000 → Postgres → workbook. | `output/jobs/watchers.json`, `apps/web/vercel.json`, docs | — |
 | 2026-08-04 | Part 1 loop: input-driven `runPipeline({ job })`, Job store, draft/apply, job-based API, real Basic 6-step wizard, real Jobs page, rows/inspect refactor, WatchService | engine `jobs/draft/stages/orchestrator/extractor/watch`, excel `rows/inspect/fill`, `apps/api/server.js`, `apps/web/*` | `8bf0031` (pushed) |
 | 2026-08-04 | Fixed "nothing changed in the software": replaced stale `apps/api/public` with fresh web build; API serving new UI on :3000 | `apps/api/public/*` | — |
 | 2026-08-04 | Single-port model (:3000 only) + multi-workflow: workflow store, API routes, Workflows page, `build:web` script, OPERATIONS update | `engine/workflows.js`, `jobs.js`, `server.js`, `Workflows.jsx`, `api.js`, `package.json`, `docs/OPERATIONS.md` | `473cf3e` |
@@ -267,13 +269,14 @@ The engine becomes a real workflow engine: Job model, safe execution
 - Real template: `C:\Users\USER\Desktop\CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`
   (sheet `العقارات`, header row 3: A معرف العقار … N تاريخ البيع); pristine backup copy
   `1785780680636_CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`.
-- Source dir: `C:\Users\USER\Documents\MEGA UPLOAUD\GOOGLE EARTH` (150 `.kmz`, watched by
-  watcher #4 "Watch GOOGLE EARTH"); sync writes into the Desktop workbook.
+- Source dir: `C:\Users\USER\Documents\MEGA UPLOAUD\GOOGLE EARTH` (150 `.kmz`).
+  **Watcher #4 "Watch GOOGLE EARTH" is restored and active (2026-08-08)**: id 4,
+  `runOnStartup:true`, steps `extract/ai/db/fill:original`, template `t2`, target
+  `C:\Users\USER\Desktop\CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`, mode `original`.
+  Requires the local API + `terraflow_pg` (Docker) to be running — the sync's `db`
+  stage fails while Postgres is down. Sync state in `output/watches/4/` (AI cache +
+  row map) is re-used by the restored watcher.
 - Test: `$env:EXCEL_TEMPLATE=...; node --test "packages/excel/test/*.test.js"` → 18/18.
-- Live state: watcher #4 destination `C:\Users\USER\Desktop\CRM_GPT_Immobilier_Employees_V8_10_2_2.xlsx`
-  (mode `original`, steps `extract/ai/db/fill:original`, runOnStartup on); per-watcher sync
-  state in `output/watches/4/` (`ai.json` cache + `excel-state.json` row map); jobs #28–#38
-  (watch-syncs) — #34 rebuild, #35 remove, #37 add, #38 auto-sync verified.
 - Earlier live state: jobs #1–23 — #3, #7, #13, #15, #16–#23 completed; #12 canceled
   (live cancel test); #11 failed (boot recovery); workflows #1 "Smoke test flow" + #2
   "Listing import (test)"; watcher #1 "Source KMZ watch" (folder, extract+ai+db, copy →
@@ -293,6 +296,15 @@ The engine becomes a real workflow engine: Job model, safe execution
   timestamped `output/backup/*_before_fill_<ts>.xlsx` backups before every sync,
   fail-fast destination check). Syncs preserve the workbook's RTL sheet views; a
   `previewInPlaceSync` dry-run exists to show add/update/remove before writing.
+- **Split deploy (Vercel static SPA + local API via cloudflared tunnel):** project
+  `terra-flow-api`, `rootDirectory: apps/web`, `outputDirectory: dist`. Build config
+  must live **inside `apps/web/`** (e.g. `apps/web/vercel.json` with SPA
+  `rewrites: [{"source":"/(.*)","destination":"/index.html"}]`); a `vercel.json` at the
+  repo root is ignored by the edge (was the cause of 404 deep links). The SPA's API base
+  is baked at build time via the Vercel env `VITE_API_URL` (currently the trycloudflare
+  URL `https://mins-playback-motels-bolt.trycloudflare.com`); deploy with
+  `node <vc.js> deploy --prod --yes` from the repo root. Rebuild the web bundle
+  (`npm.cmd run build:web`) before deploying so the fixed UI ships.
 
 *Companion docs: [README](../README.md) · [ROADMAP.md](ROADMAP.md) ·
 [VISION.md](VISION.md) · [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) ·

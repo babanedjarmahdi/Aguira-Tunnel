@@ -29,7 +29,7 @@ export default function About() {
 
       <div className="grid cols-3 mt-24">
         <StackCard icon={Layers} title="Extract" text="KMZ decompression, KML parsing, deduplication and normalization." />
-        <StackCard icon={Sparkles} title="AI analysis" text="Resume-safe, paced structuring via a pluggable provider (Groq today)." />
+        <StackCard icon={Sparkles} title="AI analysis" text="Resume-safe, paced structuring via a pluggable provider." />
         <StackCard icon={FileSpreadsheet} title="Excel fill" text="Shared-formula-safe writes into template copies with backups." />
       </div>
 

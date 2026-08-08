@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/probe-old", "destination": "/probe-new", "permanent": false }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "handle": "miss" },
+    { "src": "^/api(?:/(.*))?$", "dest": "/404.html?path=$1", "check": true },
+    { "src": "^/(.*)$", "dest": "/index.html?path=$1", "check": true }
+  ]
+}

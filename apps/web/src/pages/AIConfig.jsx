@@ -97,19 +97,19 @@ export default function AIConfig() {
         <Card className="pad" title="Provider & model" sub={`Applied from ${form.source === 'settings' ? 'saved settings' : '.env'}`}>
           <Field label="Provider">
             <div className="segmented" style={{ width: '100%' }}>
-              <button className="on">groq</button>
+              <button className="on">cloud</button>
               <button disabled style={{ opacity: 0.45, cursor: 'not-allowed' }}>openrouter</button>
               <button disabled style={{ opacity: 0.45, cursor: 'not-allowed' }}>local</button>
             </div>
           </Field>
-          <Field label="Model" hint="Groq free-tier models only.">
+          <Field label="Model" hint="Free-tier models only.">
             <select className="select" value={form.model} onChange={set('model')}>
               {(form.models || FALLBACK_MODELS).map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </Field>
-          <Field label="API base" hint="Groq-compatible OpenAI endpoint">
+          <Field label="API base" hint="OpenAI-compatible endpoint">
             <input className="input" value={form.baseUrl} onChange={set('baseUrl')} />
           </Field>
           <Field label="API key" hint="Leave blank to keep the saved key.">

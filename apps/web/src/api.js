@@ -1,7 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 
+// API origin for split deploys: set VITE_API_URL at build time to point the SPA
+// at a remote API host (e.g. a tunnel). Empty keeps the local single-port model
+// (relative /api/* served by the API itself on :3000).
+export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
 export async function api(path, opts) {
-  const res = await fetch(path, opts);
+  const res = await fetch(API_BASE + path, opts);
   if (!res.ok) {
     let msg = res.statusText;
     try { const j = await res.json(); msg = j.error || msg; } catch { /* ignore */ }
@@ -17,7 +22,7 @@ export const getProperties = (limit = 1000) => api(`/api/properties?limit=${limi
 
 // ---- Uploads -------------------------------------------------------------
 export async function uploadFile(file) {
-  const res = await fetch(`/api/uploads?name=${encodeURIComponent(file.name)}`, {
+  const res = await fetch(`${API_BASE}/api/uploads?name=${encodeURIComponent(file.name)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: file,
@@ -61,7 +66,7 @@ export const getLogs = (params = {}) => {
   const s = qs.toString();
   return api(`/api/logs${s ? `?${s}` : ''}`);
 };
-export const jobDownloadUrl = (id, file) => `/api/jobs/${id}/download${file === 'backup' ? '?file=backup' : ''}`;
+export const jobDownloadUrl = (id, file) => `${API_BASE}/api/jobs/${id}/download${file === 'backup' ? '?file=backup' : ''}`;
 export const buildDraft = (id, body = {}) => api(`/api/jobs/${id}/draft`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
@@ -113,7 +118,7 @@ export const deleteTemplate = (id) => api(`/api/templates/${id}`, { method: 'DEL
 export const mapTemplate = (id) => api(`/api/templates/${id}/map`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
 });
-export const templateDownloadUrl = (id, version) => `/api/templates/${id}/versions/${version}/download`;
+export const templateDownloadUrl = (id, version) => `${API_BASE}/api/templates/${id}/versions/${version}/download`;
 
 // ---- Workflows ------------------------------------------------------------
 export const getWorkflows = () => api('/api/workflows');
@@ -135,7 +140,7 @@ export const importWorkflow = (body) => api('/api/workflows/import', {
 });
 
 export async function startPipeline(stages) {
-  const res = await fetch('/api/pipeline', {
+  const res = await fetch(`${API_BASE}/api/pipeline`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stages }),
@@ -156,7 +161,7 @@ export function usePipelineEvents(onEvent) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const es = new EventSource('/api/pipeline/events');
+    const es = new EventSource(`${API_BASE}/api/pipeline/events`);
     es.onopen = () => setConnected(true);
     es.onmessage = (e) => {
       try {
@@ -179,7 +184,7 @@ export function useJobEvents(onEvent, jobId) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const es = new EventSource(jobId ? `/api/jobs/events?jobId=${jobId}` : '/api/jobs/events');
+    const es = new EventSource(jobId ? `${API_BASE}/api/jobs/events?jobId=${jobId}` : `${API_BASE}/api/jobs/events`);
     es.onopen = () => setConnected(true);
     es.onmessage = (e) => {
       try {

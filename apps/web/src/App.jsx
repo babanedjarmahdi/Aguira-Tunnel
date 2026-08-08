@@ -14,6 +14,18 @@ import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import About from './pages/About';
 
+function ProGate({ mode, children }) {
+  if (mode === 'pro') return children;
+  return (
+    <div className="page">
+      <div className="card pad pro-lock">
+        <h1 className="page-title">Professional mode</h1>
+        <p className="page-sub">This feature is part of Professional mode. Enable it in the sidebar (Basic / Professional) to unlock AI configuration, template manager, watchers, logs and settings.</p>
+      </div>
+    </div>
+  );
+}
+
 function Shell() {
   const loc = useLocation();
   const nav = useNavigate();
@@ -51,11 +63,11 @@ function Shell() {
           <Route path="/import" element={<ImportWizard />} />
           <Route path="/jobs" element={<Jobs setStatusMsg={setStatusMsg} />} />
           <Route path="/workflows" element={<Workflows />} />
-          <Route path="/ai" element={<AIConfig />} />
-          <Route path="/templates" element={<ExcelTemplates />} />
-          <Route path="/watchers" element={<Watchers />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/logs" element={<Logs />} />
+          <Route path="/ai" element={<ProGate mode={mode}><AIConfig /></ProGate>} />
+          <Route path="/templates" element={<ProGate mode={mode}><ExcelTemplates /></ProGate>} />
+          <Route path="/watchers" element={<ProGate mode={mode}><Watchers /></ProGate>} />
+          <Route path="/settings" element={<ProGate mode={mode}><Settings mode={mode} setMode={switchMode} /></ProGate>} />
+          <Route path="/logs" element={<ProGate mode={mode}><Logs /></ProGate>} />
           <Route path="/about" element={<About />} />
         </Routes>
       </div>

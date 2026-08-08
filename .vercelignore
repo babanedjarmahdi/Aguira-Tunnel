@@ -1,0 +1,7 @@
+# Never upload local/runtime state or secrets to Vercel.
+node_modules/
+.vercel/
+output/
+.env
+.env.*
+*.log

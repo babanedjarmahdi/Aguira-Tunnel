@@ -207,4 +207,81 @@ git push -u origin main
 
 ---
 
+## 8. Split deploy (Vercel frontend + local API via tunnel)
+
+TerraFlow is **local-first and stateful** — it cannot run as a Vercel serverless
+function (a `listen()` Express server, file-backed stores in `output/`, `fs.watch`
+watchers, SSE, and the Telegram long-poll bridge all need a persistent process).
+Vercel should host **only the static SPA**; the API keeps running on this machine
+and is exposed through a tunnel.
+
+```
+Browser ──▶ Vercel CDN (static SPA built from apps/web)
+                │
+                └─ direct HTTPS → VITE_API_URL (tunnel) ──▶ http://localhost:3000 (API)
+```
+
+### Why the site crashed on Vercel
+
+A Vercel "serverless function" tries to run `apps/api/src/server.js`, which calls
+`app.listen()` at module load and never exports a request handler. The function
+fails at invocation (`500 INTERNAL_SERVER_ERROR / FUNCTION_INVOCATION_FAILED`),
+and even if it booted, the read-only/ephemeral filesystem would break every
+`output/` store write. Fix = point Vercel at the static build, not the server.
+
+### Repo config (committed)
+
+- `apps/web/src/api.js` reads `import.meta.env.VITE_API_URL` as `API_BASE`
+  (trailing `/` stripped). Empty → local single-port mode (relative `/api/*`).
+  All `fetch`/`EventSource`/download helpers are prefixed, so the SPA can talk to
+  a remote API host. `ImportWizard.jsx` uses `jobDownloadUrl()` for its download link.
+- Project linkage `.vercel/project.json`: `rootDirectory: "apps/web"`, framework
+  `vite`, `buildCommand: "npm run build"`, `outputDirectory: "dist"`.
+- ⚠️ **Build config must live inside the root directory.** The edge only reads
+  `vercel.json` from the project `rootDirectory` — a repo-root `vercel.json`
+  is **ignored** (server build config shows blank `routes`, deep links return
+  native 404s). Effective file: `apps/web/vercel.json` with SPA fallback
+  `rewrites: [{"source": "/(.*)", "destination": "/index.html"}]` so all
+  client-side routes (`/jobs`, `/watchers`, `/ai`, …) serve the SPA shell.
+
+### Steps
+
+```powershell
+# 1. API on this machine
+npm.cmd run api                      # http://localhost:3000 (verify /api/health)
+
+# 2. Tunnel (example: cloudflared quick tunnel — no account, URL changes each restart)
+#    For a stable URL use ngrok (free static domain) or a Cloudflare named tunnel.
+& "$env:USERPROFILE\.local\bin\cloudflared.exe" tunnel --url http://localhost:3000
+#    copy the https://*.trycloudflare.com URL
+
+# 3. Build the SPA with the API origin baked in
+$env:VITE_API_URL = "https://<tunnel-url>"   # no trailing slash
+npm.cmd -w @terraflow/web run build
+#    sanity: the bundle in apps/web/dist/assets/*.js should contain your URL
+
+# 4. Deploy to Vercel (CLI, after `vercel login`)
+#    The project must use: rootDirectory apps/web, framework Vite, output dist.
+vercel --prod --yes
+#    or push to main if the project is wired to GitHub (auto-deploy).
+```
+
+### Caveats
+
+- The API has **no authentication** (local-first assumption). A public tunnel
+  means anyone with the URL can read data and trigger jobs. Put cloudflared
+  Access / a reverse-proxy auth in front before treating it as a real public
+  deployment.
+- A **quick tunnel URL changes on every restart** — and `VITE_API_URL` is baked
+  into the SPA build, so a tunnel restart requires rebuilding + redeploying the
+  frontend. Use a stable hostname (ngrok static domain / named tunnel) for any
+  durable setup.
+- Local-first features (watchers, `/api/fs` path browser, original-workbook
+  writes) operate on the **API host's** filesystem — for this setup that is this
+  machine, so the real workflows keep working.
+- The API serves the SPA too on :3000 (single-port mode) — both modes coexist;
+  `VITE_API_URL` unset keeps the old behavior.
+
+---
+
 *Back to [DATA_MODEL.md](DATA_MODEL.md) · Up: [README.md](../README.md)*
