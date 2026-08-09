@@ -1,6 +1,6 @@
 import { GroqProvider } from './groq.js';
 
-export { AIProvider } from './provider.js';
+export { AIProvider, UsageLimitError } from './provider.js';
 export { GroqProvider, GROQ_FREE_MODELS } from './groq.js';
 
 // Only 'groq' is supported today. New providers are added here without

@@ -104,6 +104,10 @@ export const updateAiSettings = (body) => api('/api/settings/ai', {
 export const testAiConnection = (body = {}) => api('/api/settings/ai/test', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
+export const getAiUsage = () => api('/api/settings/ai/usage');
+export const resetAiUsage = () => api('/api/settings/ai/usage/reset', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+});
 
 // ---- Excel templates ------------------------------------------------------
 export const getTemplates = () => api('/api/templates');

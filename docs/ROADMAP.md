@@ -111,7 +111,12 @@ logs, debug — stays hidden in Basic mode and unlocks in v0.5 (Professional mod
   AI config page's "Estimated cost & time per run" card sizes a run (records,
   tokens per record, prompt overhead, $ per 1M tokens with free-tier default)
   and derives requests, total tokens, est. time (pacing delay + measured latency)
-  and est. cost.
+  and est. cost; **free-tier usage credit guard** — a daily token budget
+  (default 60,000) is enforced from the real `usage` each Groq response reports
+  (persisted daily counter, 30-day history, auto daily reset); the provider
+  checks the budget before every request and the AI stage stops early with
+  `UsageLimitError` once today's credit is spent (AIConfig "Free usage credit"
+  card + `GET /api/settings/ai/usage` + `POST /api/settings/ai/usage/reset`).
 - **Excel template manager**: upload workbook, **sheet preview** (live cell grid of
   the stored workbook via `GET /api/templates/:id/preview`, rendered in a portal
   popup with column letters / row numbers / highlighted header row), mapping editor

@@ -1,11 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { extractAll, extractFromFiles } from './extractor.js';
-import { createProvider } from '@terraflow/ai';
+import { createProvider, UsageLimitError } from '@terraflow/ai';
 import { loadFromDisk } from '@terraflow/database';
 import { fillCopy, fillInPlace, fillInPlaceSync } from '@terraflow/excel';
 import { abortableSleep, throwIfAborted } from '@terraflow/shared';
-import { EXCEL_OUT_DIR } from './config.js';
+import { EXCEL_OUT_DIR, makeUsageAdapter } from './config.js';
 import { emitLog } from './events.js';
 
 // Each stage receives { config, emitter, ctx }. `ctx` carries the job-scoped
@@ -91,9 +91,13 @@ export async function aiStage({ config, emitter, ctx }) {
   }
   const prevByKey = new Map(previous.map((p) => [`${p.sourceFile}@${p.placemarkIndex ?? 0}`, p]));
 
-  const provider = createProvider(config.ai);
+  const provider = createProvider({
+    ...config.ai,
+    usage: makeUsageAdapter(config.ai),
+  });
   const results = [];
   let ok = 0;
+  let limited = false;
   const failures = [];
 
   for (let i = 0; i < data.length; i++) {
@@ -115,6 +119,13 @@ export async function aiStage({ config, emitter, ctx }) {
       emitLog(emitter, 'info', `[OK] ${label} -> ${ai.property_type ?? '?'} / ${ai.price_in_million ?? ai.price_per_meter ?? 'no price'}`);
     } catch (e) {
       if (e.name === 'AbortError') throw e;
+      if (e.name === 'UsageLimitError') {
+        // Free-tier credit spent: stop rather than burn more requests.
+        limited = true;
+        emitLog(emitter, 'warn', `\n${e.message}`);
+        emitLog(emitter, 'warn', `Stopping the AI stage after ${ok} new record(s) — ${data.length - i - 1} remaining skipped. Run again after the daily reset or raise the budget.`);
+        break;
+      }
       results.push({ ...entry, ai: null, aiError: e.message });
       failures.push({ sourceFile: entry.sourceFile, error: e.message });
       emitLog(emitter, 'error', `[FAIL] ${label}: ${e.message}`);
@@ -124,14 +135,14 @@ export async function aiStage({ config, emitter, ctx }) {
   }
 
   fs.writeFileSync(ctx.aiPath, JSON.stringify(results, null, 2), 'utf8');
-  emitLog(emitter, 'info', `\nDone. OK: ${ok}, Failed: ${failures.length}`);
+  emitLog(emitter, 'info', `\nDone. OK: ${ok}, Failed: ${failures.length}${limited ? ', Stopped early (usage limit)' : ''}`);
   emitLog(emitter, 'info', `Output: ${ctx.aiPath}`);
   if (failures.length) {
     emitLog(emitter, 'warn', '\nFailures:');
     failures.forEach((f) => emitLog(emitter, 'warn', `  - ${f.sourceFile}: ${f.error}`));
   }
 
-  return { results, ok, failed: failures.length, output: ctx.aiPath };
+  return { results, ok, failed: failures.length, output: ctx.aiPath, limited };
 }
 
 // ---- Stage 3: database sync ----

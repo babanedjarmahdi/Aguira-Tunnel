@@ -12,6 +12,7 @@ import {
   duplicateWorkflow, exportWorkflow, importWorkflow,
   createWatcher, getWatcher, listWatchers, updateWatcher, deleteWatcher, clearWatcherHistory,
   loadAiSettings, saveAiSettings, AI_DEFAULTS,
+  usageStatus, resetAiUsage,
   listTemplates, getTemplate, registerTemplate, updateTemplate, deleteTemplate,
   templateVersionPath, activeTemplatePath,
   listPlugins, PLUGIN_TYPES,
@@ -208,8 +209,8 @@ app.get('/api/config', (req, res) => {
 });
 
 // ---- AI settings (Professional mode) -------------------------------------
-const AI_SETTING_KEYS = ['provider', 'model', 'apiKey', 'baseUrl', 'temperature', 'maxTokens', 'prompt', 'pacingTokensPerRequest', 'pacingTpmLimit'];
-const AI_NUMERIC_KEYS = ['temperature', 'maxTokens', 'pacingTokensPerRequest', 'pacingTpmLimit'];
+const AI_SETTING_KEYS = ['provider', 'model', 'apiKey', 'baseUrl', 'temperature', 'maxTokens', 'prompt', 'pacingTokensPerRequest', 'pacingTpmLimit', 'usageEnabled', 'usageLimitTokens'];
+const AI_NUMERIC_KEYS = ['temperature', 'maxTokens', 'pacingTokensPerRequest', 'pacingTpmLimit', 'usageLimitTokens'];
 
 function publicAiSettings() {
   const ai = loadConfig(process.env).ai;
@@ -224,12 +225,15 @@ function publicAiSettings() {
     prompt: ai.prompt || '',
     pacingTokensPerRequest: ai.pacingTokensPerRequest,
     pacingTpmLimit: ai.pacingTpmLimit,
+    usageEnabled: ai.usageEnabled,
+    usageLimitTokens: ai.usageLimitTokens,
     apiKeySet: key.length > 0,
     apiKeyHint: key.length > 4 ? `••••${key.slice(-4)}` : '',
     source: saved ? 'settings' : 'env',
     updatedAt: saved?.updatedAt || null,
     models: GROQ_FREE_MODELS,
     defaults: AI_DEFAULTS,
+    usage: usageStatus(ai),
   };
 }
 
@@ -251,6 +255,9 @@ app.put('/api/settings/ai', (req, res) => {
   if (patch.temperature !== undefined && (Number.isNaN(patch.temperature) || patch.temperature < 0 || patch.temperature > 2)) {
     return res.status(400).json({ error: 'temperature must be a number between 0 and 2' });
   }
+  if (patch.usageLimitTokens !== undefined && (Number.isNaN(patch.usageLimitTokens) || patch.usageLimitTokens < 0)) {
+    return res.status(400).json({ error: 'usageLimitTokens must be a non-negative number' });
+  }
   try {
     saveAiSettings(patch);
     res.json(publicAiSettings());
@@ -269,6 +276,16 @@ app.post('/api/settings/ai/test', async (req, res) => {
     apiKey: body.apiKey || saved.apiKey,
   });
   res.json(result);
+});
+
+// Daily free-tier token budget: how much of today's credit is left.
+app.get('/api/settings/ai/usage', (req, res) => {
+  res.json(usageStatus(loadConfig(process.env).ai));
+});
+
+app.post('/api/settings/ai/usage/reset', (req, res) => {
+  resetAiUsage();
+  res.json(usageStatus(loadConfig(process.env).ai));
 });
 
 // ---- Excel templates (Professional mode) ----------------------------------
@@ -898,7 +915,7 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/health | /api/config | /api/status | /api/properties`);
   console.log(`  GET  /api/plugins | /api/jobs | /api/jobs/:id | /api/watch`);
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
-  console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test`);
+  console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test | GET /api/settings/ai/usage | POST /api/settings/ai/usage/reset`);
   console.log(`  GET|POST /api/templates | GET|PUT|DELETE /api/templates/:id`);
   console.log(`  POST /api/templates/:id/map | GET /api/templates/:id/preview | GET /api/templates/:id/versions/:v/download`);
   console.log(`  GET  /api/jobs | /api/jobs/:id | /api/watch`);

@@ -1,4 +1,4 @@
-import { AIProvider } from './provider.js';
+import { AIProvider, UsageLimitError } from './provider.js';
 import { abortableSleep } from '@terraflow/shared';
 
 // Groq free-tier models. The pipeline and the Professional UI restrict model
@@ -57,6 +57,31 @@ export class GroqProvider extends AIProvider {
     this.prompt = config.prompt || null;
     this.pacingTokensPerRequest = config.pacingTokensPerRequest ?? 700;
     this.pacingTpmLimit = config.pacingTpmLimit ?? 12000;
+    // Optional usage hook (engine wires a persisted daily token budget).
+    this.usage = config.usage || null;
+  }
+
+  // Throw UsageLimitError when the budget period's tokens are spent.
+  assertBudget() {
+    if (!this.usage) return;
+    const remaining = this.usage.remainingTokens();
+    if (remaining <= 0) {
+      const limit = this.usage.limitTokens ?? null;
+      throw new UsageLimitError(
+        `Daily AI usage limit reached${limit ? ` (${limit.toLocaleString()} tokens)` : ''} — free credit exhausted. Raise the budget or wait for the daily reset.`,
+        { usedTokens: limit, limitTokens: limit }
+      );
+    }
+  }
+
+  // Persist the real token counts the API reports for a completed call.
+  recordUsage(data) {
+    if (this.usage && data?.usage) {
+      this.usage.add({
+        input: data.usage.prompt_tokens || 0,
+        output: data.usage.completion_tokens || 0,
+      });
+    }
   }
 
   chatUrl() {
@@ -79,6 +104,7 @@ export class GroqProvider extends AIProvider {
 
     let lastErr;
     for (let attempt = 0; attempt <= retries; attempt++) {
+      this.assertBudget();
       let res;
       try {
         res = await fetch(this.chatUrl(), {
@@ -111,6 +137,7 @@ export class GroqProvider extends AIProvider {
       }
 
       const data = await res.json();
+      this.recordUsage(data);
       const content = data.choices?.[0]?.message?.content;
       return JSON.parse(content);
     }

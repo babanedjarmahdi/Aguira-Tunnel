@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Zap, Clock, Cpu, KeyRound, PlugZap } from 'lucide-react';
-import { getAiSettings, updateAiSettings, testAiConnection } from '../api';
+import { Zap, Clock, Cpu, KeyRound, PlugZap, Gauge, RotateCcw } from 'lucide-react';
+import { getAiSettings, updateAiSettings, testAiConnection, getAiUsage, resetAiUsage } from '../api';
 import { Card, Field, Button, Badge, Spinner, useToast } from '../components/ui';
 
 const FALLBACK_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-3b-preview'];
@@ -8,15 +8,18 @@ const FALLBACK_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'lla
 export default function AIConfig() {
   const toast = useToast();
   const [form, setForm] = useState(null);
+  const [usage, setUsage] = useState(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [est, setEst] = useState({ records: 150, tokens: 800, overhead: 1200, priceM: 0 });
 
+  const refreshUsage = () => getAiUsage().then(setUsage).catch(() => {});
   useEffect(() => {
     getAiSettings()
       .then((s) => setForm(s))
       .catch((e) => toast(e.message, 'err'));
+    refreshUsage();
   }, []);
 
   if (!form) {
@@ -34,14 +37,24 @@ export default function AIConfig() {
     setSaving(true);
     try {
       const body = { ...form, apiKey: form.apiKey || undefined };
-      delete body.apiKeySet; delete body.apiKeyHint; delete body.source; delete body.updatedAt; delete body.defaults;
+      delete body.apiKeySet; delete body.apiKeyHint; delete body.source; delete body.updatedAt; delete body.defaults; delete body.models; delete body.usage;
       const saved = await updateAiSettings(body);
       setForm({ ...saved, apiKey: '' });
+      refreshUsage();
       toast('AI settings saved — next job uses them');
     } catch (e) {
       toast(`Save failed: ${e.message}`, 'err');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResetUsage = async () => {
+    try {
+      setUsage(await resetAiUsage());
+      toast('Today\'s usage reset — full daily credit available again');
+    } catch (e) {
+      toast(`Reset failed: ${e.message}`, 'err');
     }
   };
 
@@ -145,6 +158,51 @@ export default function AIConfig() {
           <div className="flex between mt-16"><span className="text-sm">Computed delay between calls</span><span className="mono muted">{pacingMs} ms</span></div>
         </Card>
       </div>
+
+      <Card className="pad mt-24" title="Free usage credit" sub="Daily Groq free-tier token budget — the AI stage stops calling once today's credit is spent (measured from the API's real token usage).">
+        <div className="grid cols-2 gap-8">
+          <Field label="Enforce daily budget">
+            <div className="segmented" style={{ width: '100%' }}>
+              <button className={form.usageEnabled ? 'on' : ''} onClick={() => setForm((f) => ({ ...f, usageEnabled: true }))}>on</button>
+              <button className={!form.usageEnabled ? 'on' : ''} onClick={() => setForm((f) => ({ ...f, usageEnabled: false }))}>off</button>
+            </div>
+          </Field>
+          <Field label="Daily token budget" hint="Groq llama-3.3-70b free cap = 60,000 tokens/day (llama-3.1-8b = 144,000)">
+            <input className="input" type="number" min="0" step="1000" value={form.usageLimitTokens} onChange={set('usageLimitTokens')} />
+          </Field>
+        </div>
+
+        <div className="mt-16">
+          {usage ? (
+            <>
+              <div className="flex between text-sm mb-8">
+                <span className="muted">Used today</span>
+                <span className="mono">{usage.usedTokens.toLocaleString()} / {usage.limitTokens > 0 ? usage.limitTokens.toLocaleString() : '∞'} tokens · {usage.calls} call(s)</span>
+              </div>
+              <div className="usage-bar">
+                <div className={usage.percentUsed >= 90 ? 'usage-fill danger' : usage.percentUsed >= 70 ? 'usage-fill warn' : 'usage-fill'} style={{ width: `${usage.percentUsed}%` }} />
+              </div>
+              {usage.percentUsed >= 90 && (
+                <div className="text-sm mt-8" style={{ color: 'var(--error)' }}>Credit nearly spent — the AI stage stops as soon as the budget is hit.</div>
+              )}
+              <div className="usage-days mt-16">
+                {usage.history.slice(-7).map((h) => (
+                  <div key={h.date} className="usage-day" title={`${h.date}: ${h.totalTokens.toLocaleString()} tokens, ${h.calls} call(s)`}>
+                    <span className="usage-day-bar" style={{ height: `${Math.max(6, Math.min(100, (h.totalTokens / Math.max(1, usage.limitTokens)) * 100))}%` }} />
+                    <span className="usage-day-label">{h.date.slice(5)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex between mt-16">
+                <span className="text-sm muted">Budget applies per local day and resets automatically. The toggle + budget need "Save changes".</span>
+                <Button variant="ghost" icon={RotateCcw} onClick={handleResetUsage} disabled={!usage.calls && usage.usedTokens === 0}>Reset today</Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex gap-8"><Gauge size={15} /> Loading usage…</div>
+          )}
+        </div>
+      </Card>
 
       <Card className="pad mt-24" title="Estimated cost & time per run" sub="AI stage = 1 request per record. Fill in your data volume and rate to size a run.">
         <div className="grid cols-4 gap-8">
