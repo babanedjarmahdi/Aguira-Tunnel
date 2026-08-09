@@ -11,6 +11,7 @@ export default function AIConfig() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [est, setEst] = useState({ records: 150, tokens: 800, overhead: 1200, priceM: 0 });
 
   useEffect(() => {
     getAiSettings()
@@ -65,6 +66,14 @@ export default function AIConfig() {
   const pacingMs = form.pacingTokensPerRequest > 0 && form.pacingTpmLimit > 0
     ? Math.max(300, Math.ceil((form.pacingTokensPerRequest / form.pacingTpmLimit) * 60000))
     : '—';
+
+  const estPerReq = est.tokens + est.overhead;
+  const estTotalTokens = est.records * estPerReq;
+  const estDelayMs = pacingMs === '—' ? 1000 : pacingMs;
+  const estLatencyMs = testResult?.ok ? testResult.latencyMs : 1000;
+  const estSec = Math.round((est.records * (estDelayMs + estLatencyMs)) / 1000);
+  const estTime = estSec >= 60 ? `${Math.floor(estSec / 60)}m ${estSec % 60}s` : `${estSec}s`;
+  const estCost = (estTotalTokens / 1e6) * est.priceM;
 
   return (
     <div className="page">
@@ -136,6 +145,32 @@ export default function AIConfig() {
           <div className="flex between mt-16"><span className="text-sm">Computed delay between calls</span><span className="mono muted">{pacingMs} ms</span></div>
         </Card>
       </div>
+
+      <Card className="pad mt-24" title="Estimated cost & time per run" sub="AI stage = 1 request per record. Fill in your data volume and rate to size a run.">
+        <div className="grid cols-4 gap-8">
+          <Field label="Records to analyze">
+            <input className="input" type="number" min="1" value={est.records} onChange={(e) => setEst((s) => ({ ...s, records: Math.max(1, +e.target.value || 1) }))} />
+          </Field>
+          <Field label="Tokens per record">
+            <input className="input" type="number" min="1" value={est.tokens} onChange={(e) => setEst((s) => ({ ...s, tokens: Math.max(1, +e.target.value || 1) }))} />
+          </Field>
+          <Field label="Prompt overhead / request">
+            <input className="input" type="number" min="0" value={est.overhead} onChange={(e) => setEst((s) => ({ ...s, overhead: Math.max(0, +e.target.value || 0) }))} />
+          </Field>
+          <Field label="$ per 1M tokens" hint="0 = free tier">
+            <input className="input" type="number" min="0" step="0.01" value={est.priceM} onChange={(e) => setEst((s) => ({ ...s, priceM: Math.max(0, +e.target.value || 0) }))} />
+          </Field>
+        </div>
+        <div className="grid cols-4 mt-16 gap-8">
+          <Mini icon={Zap} label="Requests" value={String(est.records)} />
+          <Mini icon={Cpu} label="Total tokens" value={estTotalTokens.toLocaleString()} />
+          <Mini icon={Clock} label="Est. time" value={estTime} />
+          <Mini icon={KeyRound} label="Est. cost" value={est.priceM > 0 ? `$${estCost.toFixed(2)}` : '$0.00 · free tier'} />
+        </div>
+        <div className="text-sm muted mt-16" style={{ lineHeight: 1.7 }}>
+          Time = {est.records} requests × ({estDelayMs} ms pacing delay + {estLatencyMs} ms latency{testResult?.ok ? ' (measured)' : ' (assumed)'}). Tokens = {est.records} × ({est.tokens} record + {est.overhead} prompt).
+        </div>
+      </Card>
 
       <Card className="pad mt-24" title="System prompt" sub="Custom instructions replace the built-in Arabic extraction persona. Leave empty for the default.">
         <textarea className="textarea" rows={10} value={form.prompt} onChange={set('prompt')} />

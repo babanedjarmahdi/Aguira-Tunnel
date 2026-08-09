@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileSpreadsheet, Download, Plus, RefreshCcw, Columns3, Trash2, X, Save, AlertTriangle } from 'lucide-react';
+import { FileSpreadsheet, Download, Plus, RefreshCcw, Columns3, Trash2, X, Save, AlertTriangle, Eye } from 'lucide-react';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate, mapTemplate, uploadFile, templateDownloadUrl } from '../api';
 import { Card, Badge, Button, Empty, Spinner, useToast } from '../components/ui';
+import SheetPreview from '../components/SheetPreview';
 
 const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -9,6 +10,7 @@ export default function ExcelTemplates() {
   const toast = useToast();
   const [templates, setTemplates] = useState(null);
   const [editors, setEditors] = useState({});
+  const [previewId, setPreviewId] = useState(null);
   const newInput = useRef(null);
 
   const load = () => getTemplates().then((r) => setTemplates(r.templates)).catch((e) => toast(e.message, 'err'));
@@ -127,6 +129,7 @@ export default function ExcelTemplates() {
 
               <div className="flex gap-8 mt-16" style={{ flexWrap: 'wrap' }}>
                 <Button variant="ghost" icon={Columns3} onClick={() => openMap(t.id)}>Map columns</Button>
+                <Button variant="ghost" icon={Eye} onClick={() => setPreviewId(t.id)}>Preview</Button>
                 <Button variant="ghost" icon={RefreshCcw} onClick={() => document.getElementById(`ver-${t.id}`)?.click()}>New version</Button>
                 <a className="btn ghost sm" href={templateDownloadUrl(t.id, t.versions.at(-1).version)} download><Download size={13} /> Download copy</a>
                 <Button variant="ghost" icon={Trash2} onClick={() => remove(t.id, t.name)}>Delete</Button>
@@ -138,6 +141,8 @@ export default function ExcelTemplates() {
           ))}
         </div>
       )}
+
+      {previewId && <SheetPreview id={previewId} name={templates.find((t) => t.id === previewId)?.name || ''} onClose={() => setPreviewId(null)} />}
 
       <div className="mt-24">
         <Card className="pad" title="Fill safety rules">

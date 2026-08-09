@@ -119,6 +119,7 @@ export const mapTemplate = (id) => api(`/api/templates/${id}/map`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
 });
 export const templateDownloadUrl = (id, version) => `${API_BASE}/api/templates/${id}/versions/${version}/download`;
+export const templatePreview = (id, opts = {}) => api(`/api/templates/${id}/preview?rows=${opts.rows || 10}&cols=${opts.cols || 12}`);
 
 // ---- Workflows ------------------------------------------------------------
 export const getWorkflows = () => api('/api/workflows');

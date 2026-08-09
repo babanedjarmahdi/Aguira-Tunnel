@@ -19,6 +19,7 @@
 | v0.5.10 | (this commit) | 2026-08-08 | Privacy/responsive UI pass (no groq / no localhost:3000, responsive layout), Basic/Professional mode actually gated, watcher #4 "Watch GOOGLE EARTH" restored (root cause: Postgres down → `db:"up"`, runOnStartup, sync verified: AI 152 cached / DB 152 / Excel +82−70), Vercel SPA deep-link 404s fixed (build config must live in `apps/web/vercel.json` — repo-root `vercel.json` is ignored by the edge), prod redeployed and verified end-to-end via the tunnel |
 | v0.5.11 | (this commit) | 2026-08-08 | Telegram quiet + job detail popup: removed automatic job-done Telegram notifications (bridge still receives into the inbox; `telegram-ask.mjs` still sends on demand); Run history rows clickable → centered JobDetails popup with blurred backdrop showing the full job record (overview, counters, source/destination, stage results, error, full log) + Download/Re-run/Cancel actions |
 | v0.5.12 | (this commit) | 2026-08-08 | Telegram feature fully removed (bridge start + import dropped from server.js, `scripts/telegram-bridge.mjs` + `scripts/telegram-ask.mjs` deleted, bot inert); modal portal fix — `.page` fadeUp animation retained a `transform` making it a containing block for `position:fixed`, trapping the popup; all modals now render via `createPortal(…, document.body)` |
+| v0.5.13 | (this commit) | 2026-08-09 | **Part 2 (v0.5) complete — last two items**: (a) estimated cost & time per run — AIConfig "Estimated cost & time per run" card (records, tokens/record, prompt overhead, $ per 1M tokens with free-tier default) deriving requests, total tokens, est. time (pacing delay + measured latency) and est. cost; (b) sheet preview from the stored workbook — `previewSheet` (`excel/inspect.js`, defensive `safeCellText` for shared-formula/rich-text cells), `GET /api/templates/:id/preview`, and a portal `SheetPreview` popup with column letters / row numbers / highlighted header row in the template manager. Rebuilt + redeployed, full chain verified (Vercel SPA → tunnel → local API) |
 
 ## How to roll back
 
@@ -27,4 +28,4 @@ git fetch origin
 git checkout v0.5.9      # e.g. roll back to the plugin contracts build
 ```
 
-The next completed plan task will be tagged **v0.6.0**.
+The next completed plan task will be tagged **v0.6.0** (Part 3 — a second workflow / plugin pair).

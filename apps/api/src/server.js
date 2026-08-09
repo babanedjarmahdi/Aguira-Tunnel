@@ -17,7 +17,7 @@ import {
   listPlugins, PLUGIN_TYPES,
 } from '@terraflow/engine';
 import { testAiConnection, GROQ_FREE_MODELS } from '@terraflow/ai';
-import { inspectExcel, buildMapping, saveMappingProfile } from '@terraflow/excel';
+import { inspectExcel, buildMapping, previewSheet, saveMappingProfile } from '@terraflow/excel';
 import { createDb } from '@terraflow/database';
 
 dotenv.config();
@@ -314,6 +314,18 @@ app.get('/api/templates/:id/versions/:v/download', (req, res) => {
     res.download(templateVersionPath(req.params.id, req.params.v));
   } catch (e) {
     res.status(404).json({ error: e.message });
+  }
+});
+
+// Render a live cell-grid preview of the active version's data sheet.
+app.get('/api/templates/:id/preview', async (req, res) => {
+  try {
+    const rows = Math.min(parseInt(req.query.rows) || 10, 25);
+    const cols = Math.min(parseInt(req.query.cols) || 12, 20);
+    const result = await previewSheet({ templatePath: activeTemplatePath(req.params.id), rows, cols });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
 });
 
@@ -888,7 +900,7 @@ app.listen(PORT, () => {
   console.log(`  POST /api/uploads | /api/excel/inspect | /api/excel/mapping`);
   console.log(`  GET|PUT /api/settings/ai | POST /api/settings/ai/test`);
   console.log(`  GET|POST /api/templates | GET|PUT|DELETE /api/templates/:id`);
-  console.log(`  POST /api/templates/:id/map | GET /api/templates/:id/versions/:v/download`);
+  console.log(`  POST /api/templates/:id/map | GET /api/templates/:id/preview | GET /api/templates/:id/versions/:v/download`);
   console.log(`  GET  /api/jobs | /api/jobs/:id | /api/watch`);
   console.log(`  GET|POST /api/watchers | GET|PUT|DELETE /api/watchers/:id`);
   console.log(`  POST /api/watchers/:id/start | /stop | /sync | /history/clear`);

@@ -457,6 +457,18 @@ button.link-like:hover { text-decoration: underline; }
 tr.job-row { cursor: pointer; }
 tr.job-row:hover td { background: var(--surface-2); }
 
+/* Sheet preview popup */
+.sheet-preview-modal { width: 860px; }
+.sheet-preview-scroll { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.sheet-preview-tbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+.sheet-preview-tbl th, .sheet-preview-tbl td { text-align: left; padding: 4px 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.sheet-preview-tbl th { font-size: 11px; font-weight: 600; color: var(--text-3); background: var(--surface-2); position: sticky; }
+.sheet-preview-tbl thead th { top: 0; z-index: 2; }
+.sheet-preview-tbl th.sheet-rowhead { left: 0; z-index: 1; background: var(--surface-2); text-align: right; color: var(--text-3); font-weight: 600; min-width: 34px; }
+.sheet-preview-tbl th.sheet-corner { left: 0; z-index: 3; background: var(--surface-2); }
+.sheet-preview-tbl td { color: var(--text-2); }
+.sheet-preview-tbl tr.sheet-hdr td { background: rgba(59,130,246,0.08); color: var(--text); font-weight: 600; }
+
 .path-crumb { color: var(--text-2); font-size: 12.5px; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .path-list { flex: 1; min-height: 240px; max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-soft); }
 .path-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 10px; font-size: 13px; color: var(--text); background: transparent; border: none; cursor: pointer; }

@@ -101,14 +101,20 @@ logs, debug — stays hidden in Basic mode and unlocks in v0.5 (Professional mod
   watch events (`/api/jobs/events`, `watch:change` / `watch:log` / `watch:state`).
 - Served on one port: the API builds and serves the web UI on `http://localhost:3000`.
 
-## v0.5 — Professional mode & workflow building blocks ⏳
+## v0.5 — Professional mode & workflow building blocks ✅
 
 - **Professional mode unlocks:** AI provider, prompt configuration, workflow
   settings, column mapping, JSON inspection, dry run, developer logs, job
   history, advanced diagnostics. All collapsible panels.
 - **AI configuration** (real, applied): provider / model / API key / temperature /
-  max tokens / prompt templates; test connection; estimated cost & time.
-- **Excel template manager**: upload workbook, sheet preview, mapping editor
+  max tokens / prompt templates; test connection; **estimated cost & time** — the
+  AI config page's "Estimated cost & time per run" card sizes a run (records,
+  tokens per record, prompt overhead, $ per 1M tokens with free-tier default)
+  and derives requests, total tokens, est. time (pacing delay + measured latency)
+  and est. cost.
+- **Excel template manager**: upload workbook, **sheet preview** (live cell grid of
+  the stored workbook via `GET /api/templates/:id/preview`, rendered in a portal
+  popup with column letters / row numbers / highlighted header row), mapping editor
   (rename / ignore / add columns), validation rules, version history.
 - **Workflow builder**: reusable workflows (input source + AI config + template +
   mapping + output); save / duplicate / export / import / run.

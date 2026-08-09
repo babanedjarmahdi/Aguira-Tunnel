@@ -27,6 +27,17 @@ function norm(s) {
   return String(s || '').replace(/[\s،؛.()\-/]/g, '').trim();
 }
 
+// Read a cell's display text defensively: some value objects (shared formulas,
+// rich text, hyperlinks) blow up `cell.text`, so fall back to '' rather than crash.
+function safeCellText(cell) {
+  try {
+    const t = cell.text;
+    return t == null ? '' : String(t);
+  } catch {
+    return '';
+  }
+}
+
 export async function inspectExcel({ templatePath }) {
   if (!templatePath) throw new Error('templatePath is required');
   if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templatePath}`);
@@ -57,6 +68,43 @@ export async function inspectExcel({ templatePath }) {
     sheets,
     sheet: { name: ws.name, startRow, existingRows: Math.max(0, startRow - 4), headerRow, colCount: ws.columnCount },
     headers,
+  };
+}
+
+// Render a cell-grid preview from a stored workbook (template manager "Preview").
+// Returns the top rows of the data sheet as a 2D grid of cell text, plus the
+// header/start rows so the UI can highlight them.
+export async function previewSheet({ templatePath, rows = 10, cols = 12 }) {
+  if (!templatePath) throw new Error('templatePath is required');
+  if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templatePath}`);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(templatePath);
+
+  const ws = workbook.getWorksheet(SHEET_NAME) || workbook.worksheets[0];
+  const startRow = findStartRow(ws);
+  const headerRow = startRow > 3 ? 3 : 1;
+
+  const colLimit = Math.min(cols, ws.columnCount || cols);
+  const rowLimit = Math.min(rows, Math.max(ws.rowCount, rows));
+  const grid = [];
+  for (let r = 1; r <= rowLimit; r++) {
+    const line = [];
+    for (let c = 1; c <= colLimit; c++) {
+      line.push(safeCellText(ws.getCell(r, c)));
+    }
+    grid.push(line);
+  }
+
+  return {
+    sheet: ws.name,
+    headerRow,
+    startRow,
+    rowCount: ws.rowCount,
+    colCount: ws.columnCount,
+    shownRows: rowLimit,
+    shownCols: colLimit,
+    grid,
   };
 }
 
