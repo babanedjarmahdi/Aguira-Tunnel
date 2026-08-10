@@ -8,12 +8,13 @@ import {
 } from '../api';
 import { Card, Badge, Button, Empty, Field, Segmented, Toggle, useToast, Spinner, Dot } from '../components/ui';
 import NewWorkflowChooser from '../components/NewWorkflowChooser';
+import { WATCHER_ENABLED } from '../env';
 
 const ALL_STEPS = [
-  { id: 'extract', label: 'Extract (KMZ)' },
+  { id: 'extract', label: 'Extract' },
   { id: 'ai', label: 'AI analysis' },
   { id: 'db', label: 'Database sync' },
-  { id: 'fill', label: 'Excel copy fill' },
+  { id: 'fill', label: 'Copy fill' },
   { id: 'fill:original', label: 'Original fill' },
 ];
 
@@ -25,7 +26,7 @@ export default function Workflows() {
   const toast = useToast();
   const nav = useNavigate();
   const { data: workflows, refresh } = usePoll(getAllWorkflows, 4000);
-  const list = workflows || [];
+  const list = (workflows || []).filter((w) => WATCHER_ENABLED || w.type !== 'watch');
   const importInput = useRef(null);
 
   const [showNew, setShowNew] = useState(false);
@@ -207,12 +208,12 @@ export default function Workflows() {
               <Field label="Workflow name">
                 <input className="input" placeholder="e.g. Weekly listing import" value={name} onChange={(e) => setName(e.target.value)} />
               </Field>
-              <Field label="Input folder (KMZ source dir)" hint="Optional — defaults to the configured SOURCE_KMZ_DIR">
+              <Field label="Input folder" hint="Optional — defaults to the configured source folder">
                 <input className="input" placeholder="C:/…/GOOGLE EARTH" value={sourceDir} onChange={(e) => setSourceDir(e.target.value)} />
               </Field>
             </div>
             <div className="flex-col gap-16">
-              <Field label="Excel template" hint="Optional — a registered template from the manager">
+              <Field label="Template" hint="Optional — a registered template from the manager">
                 <select className="select" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
                   <option value="">Default (EXCEL_TEMPLATE)</option>
                   {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -239,7 +240,7 @@ export default function Workflows() {
                   ))}
                 </div>
               </Field>
-              <Field label="Excel write mode">
+              <Field label="Write mode">
                 <Segmented
                   value={mode}
                   onChange={setMode}
@@ -249,7 +250,7 @@ export default function Workflows() {
                   ]}
                 />
               </Field>
-              <Field label="Auto-apply" hint="Skip draft review; write to Excel straight after the pipeline">
+              <Field label="Auto-apply" hint="Skip draft review; write to the destination straight after the pipeline">
                 <Toggle checked={autoApply} onChange={setAutoApply} label={autoApply ? 'On' : 'Off'} />
               </Field>
               <div className="flex gap-8">

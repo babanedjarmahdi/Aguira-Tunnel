@@ -4,7 +4,7 @@ export const STAGES = [
   { id: 'extract', label: 'Extract', icon: Layers },
   { id: 'ai', label: 'AI Analysis', icon: Sparkles },
   { id: 'db', label: 'Database', icon: Database },
-  { id: 'fill', label: 'Excel Copy', icon: FileSpreadsheet },
+  { id: 'fill', label: 'Copy Fill', icon: FileSpreadsheet },
   { id: 'fill:original', label: 'Original Fill', icon: RefreshCcw },
 ];
 
@@ -13,7 +13,7 @@ export const JOB_STAGES = [
   { id: 'ai', label: 'AI Analysis', icon: Sparkles },
   { id: 'db', label: 'Database', icon: Database },
   { id: 'draft', label: 'Review draft', icon: ClipboardList },
-  { id: 'apply', label: 'Apply to Excel', icon: Check },
+  { id: 'apply', label: 'Apply', icon: Check },
 ];
 
 // stageId -> index; a running pipeline lights current + dashes completed

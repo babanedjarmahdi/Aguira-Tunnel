@@ -34,7 +34,6 @@ export async function uploadFile(file) {
   }
   return res.json();
 }
-export const uploadKmz = uploadFile;
 
 // ---- Excel inspect / mapping ---------------------------------------------
 export const inspectExcel = (body = {}) => api('/api/excel/inspect', {

@@ -1,6 +1,7 @@
 import { Play, Eye, X, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { WATCHER_ENABLED } from '../env';
 
 export default function NewWorkflowChooser({ onClose }) {
   const nav = useNavigate();
@@ -19,11 +20,12 @@ export default function NewWorkflowChooser({ onClose }) {
           <div className="card pad hero-wf" onClick={go(() => nav('/import'))}>
             <Play size={18} style={{ color: 'var(--accent)' }} />
             <b style={{ fontSize: 14, display: 'block', marginTop: 8 }}>Import workflow</b>
-            <p className="muted text-sm mt-8">Run once — pick a KMZ file or folder, review the draft, apply to Excel.</p>
+            <p className="muted text-sm mt-8">Run once — pick a file or folder, review the draft, apply to your destination.</p>
             <span className="flex gap-8" style={{ color: 'var(--accent)', marginTop: 10, fontWeight: 600, fontSize: 12.5, alignItems: 'center' }}>
               Start import <ArrowRight size={13} />
             </span>
           </div>
+          {WATCHER_ENABLED && (
           <div className="card pad hero-wf" onClick={go(() => nav('/watchers', { state: { createNew: true } }))}>
             <Eye size={18} style={{ color: 'var(--accent)' }} />
             <b style={{ fontSize: 14, display: 'block', marginTop: 8 }}>Watch workflow</b>
@@ -32,6 +34,7 @@ export default function NewWorkflowChooser({ onClose }) {
               Create watcher <ArrowRight size={13} />
             </span>
           </div>
+          )}
         </div>
       </div>
     </div>,

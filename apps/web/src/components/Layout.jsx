@@ -8,7 +8,7 @@ export const NAV = [
   { id: '/import', label: 'Import workflow', icon: UploadCloud },
   { id: '/watchers', label: 'Watch workflows', icon: Eye },
   { id: '/ai', label: 'AI Configuration', icon: Sparkles, pro: true },
-  { id: '/templates', label: 'Excel Templates', icon: FileSpreadsheet, pro: true },
+  { id: '/templates', label: 'Templates', icon: FileSpreadsheet, pro: true },
 ];
 export const NAV_BOTTOM = [
   { id: '/settings', label: 'Settings', icon: Settings, pro: true },

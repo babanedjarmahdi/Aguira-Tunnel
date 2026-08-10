@@ -4,7 +4,7 @@ import { Card, Button, Badge } from '../components/ui';
 
 const STEPS = [
   { icon: FolderTree, title: 'Watch a folder or file', text: 'Point at any folder (e.g. a GOOGLE EARTH export) or a single file, with a debounce so bursts of changes run as one batch.' },
-  { icon: Layers, title: 'Run your workflow stages', text: 'On every change the watched input runs its own stages — extract (KMZ), AI analysis, database sync, fill or modify a workbook.' },
+  { icon: Layers, title: 'Run your workflow stages', text: 'On every change the watched input runs its own stages — extract, AI analysis, database sync, fill or modify a workbook.' },
   { icon: RefreshCw, title: 'Apply automatically', text: 'Auto-apply updates the destination, or review each batch first. Run-on-startup resumes watchers after a restart.' },
 ];
 

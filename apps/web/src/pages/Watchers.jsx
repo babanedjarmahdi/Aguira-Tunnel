@@ -12,7 +12,7 @@ import PathBrowser from '../components/PathBrowser';
 const tone = (s) => (s === 'completed' ? 'ok' : s === 'failed' ? 'err' : s === 'canceled' ? 'warn' : 'info');
 
 const ALL_STEPS = [
-  { id: 'extract', label: 'Extract (KMZ)' },
+  { id: 'extract', label: 'Extract' },
   { id: 'ai', label: 'AI analysis' },
   { id: 'db', label: 'Database sync' },
   { id: 'fill', label: 'Copy fill (new file)' },
@@ -206,14 +206,14 @@ export default function Watchers() {
                   value={f.type}
                   onChange={set('type')}
                   options={[
-                    { value: 'folder', label: 'Folder (.kmz)' },
+                    { value: 'folder', label: 'Folder' },
                     { value: 'file', label: 'Single file' },
                   ]}
                 />
               </Field>
               <Field label={f.type === 'file' ? 'File path to watch' : 'Folder path to watch'} hint="Absolute path — use the picker or paste it">
                 <div className="flex gap-8">
-                  <input className="input" placeholder={f.type === 'file' ? 'C:/…/file.kmz' : 'C:/…/GOOGLE EARTH'} value={f.watchPath} onChange={(e) => set('watchPath')(e.target.value)} />
+                  <input className="input" placeholder={f.type === 'file' ? 'C:/…/file' : 'C:/…/folder'} value={f.watchPath} onChange={(e) => set('watchPath')(e.target.value)} />
                   <Button variant="ghost" icon={FolderOpen} onClick={() => setBrowse('watch')}>{f.type === 'file' ? 'Choose file' : 'Choose folder'}</Button>
                 </div>
               </Field>

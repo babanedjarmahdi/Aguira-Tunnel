@@ -6,15 +6,16 @@ import {
   ClipboardList, Download, AlertTriangle, Clock, Radar, Square, ExternalLink, Bookmark, Pencil,
 } from 'lucide-react';
 import {
-  uploadKmz, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft, cancelJob,
+  uploadFile, inspectExcel, buildExcelMapping, saveExcelMapping, createJob, getJob, buildDraft, applyDraft, cancelJob,
   useJobEvents, getConfig, usePoll, getWatchers, createWatcher, updateWatcher, startWatcher, stopWatcher, getTemplates,
   jobDownloadUrl,
 } from '../api';
 import { Button, Badge, Progress, Dot, useToast, Card, Spinner, Segmented, Empty, Field } from '../components/ui';
 import PipelineVisual, { JOB_STAGES } from '../components/PipelineVisual';
 import PathBrowser from '../components/PathBrowser';
+import { WATCHER_ENABLED } from '../env';
 
-const STEP_LABELS = ['Input', 'Excel destination', 'Run', 'Progress', 'Review draft', 'Apply'];
+const STEP_LABELS = ['Input', 'Destination', 'Run', 'Progress', 'Review draft', 'Apply'];
 
 const WATCH_STEPS = [
   { id: 'extract', label: 'Extract' },
@@ -134,7 +135,7 @@ export default function ImportWizard() {
     const stored = [];
     try {
       for (const f of list) {
-        const res = await uploadKmz(f);
+        const res = await uploadFile(f);
         stored.push(res.file);
       }
       setFiles((prev) => [...prev, ...stored]);
@@ -147,7 +148,7 @@ export default function ImportWizard() {
   };
 
   const startJob = async () => {
-    if (!files.length) { toast('Add at least one KMZ file first', 'err'); return; }
+    if (!files.length) { toast('Add at least one file first', 'err'); return; }
     setCreating(true);
     setLogs([]); setDone([]); setCurrentStage(null); setJob(null);
     try {
@@ -174,7 +175,7 @@ export default function ImportWizard() {
     setWatchToggling(true);
     try {
       await startWatcher(activeWatcher.id);
-      toast('Watch started — new .kmz files will auto-sync');
+      toast('Watch started — new files will auto-sync');
     } catch (e) {
       toast(e.message, 'err');
     } finally {
@@ -313,7 +314,7 @@ export default function ImportWizard() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Import workflow</h1>
-          <p className="page-sub">An import workflow runs once: upload a KMZ export, review the Excel destination, run the pipeline, review the draft, then apply.</p>
+          <p className="page-sub">An import workflow runs once: upload your file(s), pick a destination, run the pipeline, review the draft, then apply.</p>
         </div>
         <Button variant="ghost" icon={RefreshCcw} onClick={reset}>Reset</Button>
       </div>
@@ -339,10 +340,10 @@ export default function ImportWizard() {
             options={[
               { value: 'file', label: 'Single file' },
               { value: 'folder', label: 'Whole folder' },
-              { value: 'watch', label: 'Watch folder' },
+              ...(WATCHER_ENABLED ? [{ value: 'watch', label: 'Watch folder' }] : []),
             ]}
           />
-          {pickerMode === 'watch' ? (
+          {pickerMode === 'watch' && WATCHER_ENABLED ? (
             <div className="mt-16">
               <div className="grid cols-2">
                 <Card pad>
@@ -442,7 +443,7 @@ export default function ImportWizard() {
                 </Card>
                 <Card pad title="When to use watch mode">
                   <div className="flex-col gap-4" style={{ paddingLeft: 18 }}>
-                    <li className="muted text-sm">You keep adding .kmz files to the same folder over time.</li>
+                    <li className="muted text-sm">You keep adding files to the same folder over time.</li>
                     <li className="muted text-sm">You want the destination re-synced automatically, hands-off.</li>
                     <li className="muted text-sm">Each watcher is a watch workflow — it lives on the Workflows page with its own Start / Stop / Edit controls.</li>
                     <li className="muted text-sm">One-shot imports still use Single file / Whole folder above.</li>
@@ -452,7 +453,7 @@ export default function ImportWizard() {
             </div>
           ) : (
           <>
-          <input ref={fileInputRef} type="file" accept=".kmz,.kml" hidden
+          <input ref={fileInputRef} type="file" hidden
             onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
           <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple hidden
             onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
@@ -462,8 +463,8 @@ export default function ImportWizard() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); pick(e.dataTransfer.files); }}>
             {uploading ? <Spinner size={22} /> : <UploadCloud />}
-            <h4>{pickerMode === 'folder' ? 'Drop a folder of KMZ files here' : 'Drop your KMZ export here'}</h4>
-            <p>…or click to browse. Placemark collections from Google Earth are ideal.</p>
+            <h4>{pickerMode === 'folder' ? 'Drop a folder of files here' : 'Drop your file here'}</h4>
+            <p>…or click to browse. You choose the file type — TerraFlow processes whatever you bring.</p>
           </div>
 
           {files.length > 0 && (
@@ -491,12 +492,12 @@ export default function ImportWizard() {
             <span className="hint">
               {pickerMode === 'watch'
                 ? 'Watch runs in the background — no manual upload needed.'
-                : 'KMZ is decompressed locally — nothing leaves your machine until you run the pipeline.'}
+                : 'Your files stay local — nothing leaves your machine until you run the pipeline.'}
             </span>
             {pickerMode === 'watch' ? (
               <Button variant="primary" icon={ChevronRight} onClick={() => navigate('/jobs')}>Open Jobs</Button>
             ) : (
-              <Button variant="primary" icon={ChevronRight} onClick={() => files.length ? setStep(1) : toast('Upload at least one KMZ file first', 'err')}>Continue</Button>
+              <Button variant="primary" icon={ChevronRight} onClick={() => files.length ? setStep(1) : toast('Upload at least one file first', 'err')}>Continue</Button>
             )}
           </div>
         </Card>
@@ -543,7 +544,7 @@ export default function ImportWizard() {
             </div>
             <p className="hint mt-8">
               {destMode === 'copy'
-                ? 'Creates a brand-new filled workbook in output/excel — the template is never touched.'
+                ? 'Creates a brand-new filled workbook — the template is never touched.'
                 : 'Writes rows into the original workbook, with a forced backup first.'}
             </p>
 
@@ -553,7 +554,7 @@ export default function ImportWizard() {
             </div>
           </Card>
 
-          <Card className="pad" title="Column mapping" sub="AI/engine field → Excel column (auto-detected from the template)">
+          <Card className="pad" title="Column mapping" sub="AI/engine field → destination column (auto-detected from the template)">
             {mapping ? (
               <>
                 <div className="flex between mb-12">
@@ -586,7 +587,7 @@ export default function ImportWizard() {
                 )}
                 <div className="table-wrap">
                   <table className="tbl">
-                    <thead><tr><th>Field</th><th>Col</th><th>Excel header</th><th>Confidence</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Field</th><th>Col</th><th>Header</th><th>Confidence</th><th>Status</th></tr></thead>
                     <tbody>
                       {mapping.mapping.map((m) => (
                         <tr key={m.aiField}>
@@ -619,7 +620,7 @@ export default function ImportWizard() {
             <span className="avatar" style={{ background: 'rgba(34,211,238,0.12)' }}><Zap size={16} /></span>
             <div>
               <h3 className="card-title">Ready to run</h3>
-              <p className="card-sub">The pipeline extracts placemarks, runs AI analysis, then syncs the database. Excel writing happens after you review the draft.</p>
+              <p className="card-sub">The pipeline processes your files, runs AI analysis, then syncs the database. Writing to the destination happens after you review the draft.</p>
             </div>
           </div>
           <div className="grid cols-2 mb-16">
@@ -730,7 +731,7 @@ export default function ImportWizard() {
           <div className="flex between mt-16">
             <Button variant="ghost" icon={ChevronLeft} onClick={() => setStep(3)}>Back</Button>
             <Button variant="primary" icon={Play} onClick={doApply} disabled={!draft || applying}>
-              {applying ? <><Spinner /> Applying…</> : <>Apply to Excel</>}
+              {applying ? <><Spinner /> Applying…</> : <>Apply</>}
             </Button>
           </div>
         </Card>

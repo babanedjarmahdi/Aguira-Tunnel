@@ -53,7 +53,7 @@ export default function Dashboard({ setStatusMsg }) {
         <span className="hero-eyebrow"><Dot tone="info" /> TerraFlow Engine</span>
         <h1 className="hero-title">{running ? 'Workflow in progress.' : 'Your workflows, one dashboard.'}</h1>
         <p className="hero-sub">
-          Workflows are the unit of work. Import workflows run once — a KMZ export becomes a filled Excel workbook.
+          Workflows are the unit of work. Import workflows run once — your file becomes a filled workbook.
           Watch workflows run in the background — a folder is re-synced automatically. Both share the same pipeline.
         </p>
         <div className="hero-actions">
@@ -65,7 +65,7 @@ export default function Dashboard({ setStatusMsg }) {
         </div>
         <div className="hero-meta">
           <div className="m"><b>{stats.properties ?? 0}</b>Properties indexed</div>
-          <div className="m"><b>{stats.copied ?? 0}</b>Excel rows written</div>
+          <div className="m"><b>{stats.copied ?? 0}</b>Rows written</div>
           <div className="m"><b>{stats.failed ?? 0}</b>Failures</div>
           <div className="m"><b>{stats.duplicates ?? 0}</b>Duplicates</div>
         </div>
@@ -128,7 +128,7 @@ export default function Dashboard({ setStatusMsg }) {
           <div className="flex between mb-16">
             <div>
               <h3 className="card-title">Import pipeline</h3>
-              <p className="card-sub">extract → AI analysis → database → Excel copy → original fill</p>
+              <p className="card-sub">extract → AI analysis → database → copy fill → original fill</p>
             </div>
             {last && <Badge tone={last.status === 'error' ? 'err' : last.status === 'success' ? 'ok' : 'info'}>{last.status}</Badge>}
           </div>
@@ -152,11 +152,11 @@ export default function Dashboard({ setStatusMsg }) {
       <div className="grid cols-2 mt-24">
         <Card pad title="Quick actions" sub="Common starting points">
           <div className="flex-col gap-8">
-            <QuickAction icon={UploadCloud} title="Import a KMZ file" text="Run the full extract → AI → Excel pipeline" onClick={() => nav('/import')} />
+            <QuickAction icon={UploadCloud} title="Import a file" text="Run the full extract → AI → destination pipeline" onClick={() => nav('/import')} />
             <QuickAction icon={Eye} title="Watch a folder" text="Create a watch workflow — folder, destination and stages" onClick={() => nav('/watchers')} />
             <QuickAction icon={Play} title="Manage workflows" text="Saved pipelines: input folder, template and AI model" onClick={() => nav('/workflows')} />
             <QuickAction icon={Sparkles} title="Tune AI configuration" text="Provider, model, prompt and pacing" onClick={() => nav('/ai')} />
-            <QuickAction icon={FileSpreadsheet} title="Manage Excel templates" text="Start row, sheet, columns and notes" onClick={() => nav('/templates')} />
+            <QuickAction icon={FileSpreadsheet} title="Manage templates" text="Start row, sheet, columns and notes" onClick={() => nav('/templates')} />
           </div>
         </Card>
         <Card pad title="Recent activity" sub="Latest pipeline runs">

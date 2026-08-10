@@ -17,8 +17,8 @@ export default function About() {
         <Logo size={64} />
         <h2 style={{ margin: '16px 0 4px', fontSize: 24, letterSpacing: '-0.03em' }}>TerraFlow Engine</h2>
         <p className="muted" style={{ maxWidth: 520, margin: '0 auto' }}>
-          Extract placemarks from KMZ exports, structure them with AI, persist to PostgreSQL, and fill Excel workbooks —
-          all in one automated pipeline with live, resumable telemetry.
+          TerraFlow turns your files into structured, fillable data — processed by AI, persisted in PostgreSQL,
+          and written to the workbooks you choose, all in one automated pipeline with live, resumable telemetry.
         </p>
         <div className="flex gap-8 mt-24" style={{ justifyContent: 'center' }}>
           <Badge>MIT license</Badge>
@@ -28,9 +28,9 @@ export default function About() {
       </Card>
 
       <div className="grid cols-3 mt-24">
-        <StackCard icon={Layers} title="Extract" text="KMZ decompression, KML parsing, deduplication and normalization." />
+        <StackCard icon={Layers} title="Extract" text="Input parsing, deduplication and normalization." />
         <StackCard icon={Sparkles} title="AI analysis" text="Resume-safe, paced structuring via a pluggable provider." />
-        <StackCard icon={FileSpreadsheet} title="Excel fill" text="Shared-formula-safe writes into template copies with backups." />
+        <StackCard icon={FileSpreadsheet} title="Workbook fill" text="Shared-formula-safe writes into template copies with backups." />
       </div>
 
       <div className="mt-24">
@@ -42,7 +42,7 @@ export default function About() {
                 <tr><td>API</td><td className="mono">Node 20 · Express · Server-Sent Events</td></tr>
                 <tr><td>Engine</td><td className="mono">@terraflow/engine · staged pipeline with structured events</td></tr>
                 <tr><td>Database</td><td className="mono">PostgreSQL 16 (docker-compose)</td></tr>
-                <tr><td>Excel</td><td className="mono">exceljs · copy-first fills · D8 clone promotion</td></tr>
+                <tr><td>Workbooks</td><td className="mono">exceljs · copy-first fills · D8 clone promotion</td></tr>
               </tbody>
             </table>
           </div>
