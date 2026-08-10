@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   UploadCloud, Check, Sparkles, FileSpreadsheet, RefreshCcw, Play,
   ChevronLeft, ChevronRight, FolderOpen, X, CheckCircle2, Zap, Database,
@@ -28,8 +28,9 @@ const WATCH_STEPS = [
 export default function ImportWizard() {
   const toast = useToast();
   const navigate = useNavigate();
+  const loc = useLocation();
   const [step, setStep] = useState(0);
-  const [pickerMode, setPickerMode] = useState('file');
+  const [pickerMode, setPickerMode] = useState(loc.state?.pickerMode || 'file');
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
