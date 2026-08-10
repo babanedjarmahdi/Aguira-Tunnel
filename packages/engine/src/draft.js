@@ -3,6 +3,7 @@ import path from 'path';
 import { previewRows, fillCopy, fillInPlace } from '@terraflow/excel';
 import { getJob, updateJob } from './jobs.js';
 import { JOBS_DIR, EXCEL_OUT_DIR, BACKUP_DIR } from './config.js';
+import { resolvePlugin } from './plugins.js';
 
 export function jobWorkDir(jobId) {
   return path.join(JOBS_DIR, `job-${jobId}`);
@@ -16,17 +17,35 @@ export function jobDraftPath(jobId) {
   return path.join(jobWorkDir(jobId), 'draft.json');
 }
 
+// A workflow is "database-destination" when the output adapter is the generic
+// records table (the v0.6 second workflow). Its cleaned records live in the
+// job's properties.json (no AI stage).
+export function isDbWorkflow(job) {
+  return job?.workflowType === 'csv-db' || job?.destination?.outputType === 'database';
+}
+
 export function readJobRecords(jobId, { withAi = true } = {}) {
+  const job = getJob(jobId);
+  if (!job) throw new Error(`Job ${jobId} not found`);
+  if (isDbWorkflow(job)) {
+    const file = path.join(jobWorkDir(jobId), 'properties.json');
+    if (!fs.existsSync(file)) throw new Error('No cleaned CSV output for this job yet — run the pipeline first.');
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
   const aiPath = jobAiPath(jobId);
   if (!fs.existsSync(aiPath)) throw new Error('No AI output for this job yet — run the pipeline first.');
   const records = JSON.parse(fs.readFileSync(aiPath, 'utf8'));
   return withAi ? records.filter((d) => d.ai) : records;
 }
 
-// Build a reviewable draft (computed Excel rows) without writing anything.
-export async function buildDraft(jobId, { mode = 'copy', templatePath = null, autoCreate = null } = {}) {
+// Build a reviewable draft without writing anything. Excel workflows ground a
+// field→column mapping against the workbook; database workflows (csv-db) ask
+// the output-database plugin to plan inserts/updates/deletes against the
+// generic `records` table.
+export async function buildDraft(jobId, { mode = 'copy', templatePath = null, autoCreate = null, workflowType = null, prune = false } = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`Job ${jobId} not found`);
+  if (isDbWorkflow(job)) return buildDbDraft(jobId, { workflowType, prune });
   const records = readJobRecords(jobId);
   const template = templatePath || job.destination?.templatePath || process.env.EXCEL_TEMPLATE;
   if (!template) throw new Error('No Excel template configured');
@@ -61,6 +80,31 @@ export async function buildDraft(jobId, { mode = 'copy', templatePath = null, au
   return draft;
 }
 
+async function buildDbDraft(jobId, { workflowType = null, prune = false } = {}) {
+  const job = getJob(jobId);
+  const records = readJobRecords(jobId);
+  const plugin = resolvePlugin('output', 'output-database');
+  const draft = await plugin.draft(records, {
+    workflowType: workflowType || job.workflowType || 'csv-db',
+    prune,
+  });
+  draft.jobId = jobId;
+  fs.mkdirSync(jobWorkDir(jobId), { recursive: true });
+  fs.writeFileSync(jobDraftPath(jobId), JSON.stringify(draft, null, 2), 'utf8');
+
+  updateJob(jobId, {
+    draft: {
+      table: draft.table,
+      workflowType: draft.workflowType,
+      generatedAt: draft.generatedAt,
+      rows: draft.records,
+      counts: draft.counts,
+      path: jobDraftPath(jobId),
+    },
+  });
+  return draft;
+}
+
 export function getDraft(jobId) {
   const draftPath = jobDraftPath(jobId);
   if (fs.existsSync(draftPath)) return JSON.parse(fs.readFileSync(draftPath, 'utf8'));
@@ -68,10 +112,13 @@ export function getDraft(jobId) {
   return job?.draft || null;
 }
 
-// Apply a reviewed draft: write rows into the Excel workbook (copy or original).
+// Apply a reviewed draft: database workflows run the output-database plugin's
+// apply() against Postgres; Excel workflows write the workbook (copy or
+// original) as before.
 export async function applyDraft(jobId, { mode = null, templatePath = null, outputName = null, autoCreate = null } = {}) {
   const job = getJob(jobId);
   if (!job) throw new Error(`Job ${jobId} not found`);
+  if (isDbWorkflow(job)) return applyDbDraft(jobId);
   const records = readJobRecords(jobId);
 
   const mode2 = mode || job.draft?.mode || job.destination?.mode || 'copy';
@@ -90,4 +137,22 @@ export async function applyDraft(jobId, { mode = null, templatePath = null, outp
 
   updateJob(jobId, { status: 'completed', output: result, appliedAt: new Date().toISOString() });
   return { ...result, mode: mode2 };
+}
+
+async function applyDbDraft(jobId) {
+  const job = getJob(jobId);
+  const draft = getDraft(jobId);
+  if (!draft || !Array.isArray(draft.inserts)) {
+    throw new Error('No database draft yet — build one first (POST /api/jobs/:id/draft).');
+  }
+  const plugin = resolvePlugin('output', 'output-database');
+  const result = await plugin.apply(draft, {});
+  updateJob(jobId, {
+    status: 'completed',
+    output: { ...result, table: 'records' },
+    recordsCreated: result.inserted,
+    recordsUpdated: result.updated,
+    appliedAt: new Date().toISOString(),
+  });
+  return result;
 }

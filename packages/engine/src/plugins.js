@@ -1,6 +1,11 @@
 import { extractFromFiles, extractAll } from './extractor.js';
 import { inspectExcel, buildMapping, previewRows, fillCopy, fillInPlace, fillInPlaceSync } from '@terraflow/excel';
 import { createProvider } from '@terraflow/ai';
+import { createInputCsvPlugin } from './plugins/csv-input.js';
+import { createOutputDatabasePlugin } from './plugins/db-output.js';
+
+export { createInputCsvPlugin } from './plugins/csv-input.js';
+export { createOutputDatabasePlugin } from './plugins/db-output.js';
 
 /**
  * Plugin contracts — the stable extension mechanism (ARCHITECTURE_PLAN §6).
@@ -207,7 +212,9 @@ export function createAiPlugin({ id = 'ai-groq', version = '1.0.0', config = {} 
 export function listPlugins() {
   return [
     createInputPlugin().manifest,
+    createInputCsvPlugin().manifest,
     createOutputPlugin().manifest,
+    createOutputDatabasePlugin({ config: {} }).manifest,
     createAiPlugin({ config: {} }).manifest,
   ];
 }
@@ -215,8 +222,14 @@ export function listPlugins() {
 // Resolve a built-in plugin by type + id, honoring the contracts only.
 // Throws if the type/id is unknown or the implementation fails validation.
 export function resolvePlugin(type, id, { config = {} } = {}) {
-  if (type === 'input' && (!id || id === 'input-kmz')) return createInputPlugin();
-  if (type === 'output' && (!id || id === 'output-excel')) return createOutputPlugin();
+  if (type === 'input') {
+    if (!id || id === 'input-kmz') return createInputPlugin();
+    if (id === 'input-csv') return createInputCsvPlugin();
+  }
+  if (type === 'output') {
+    if (!id || id === 'output-excel') return createOutputPlugin();
+    if (id === 'output-database') return createOutputDatabasePlugin({ config });
+  }
   if (type === 'ai' && (!id || id === 'ai-groq')) return createAiPlugin({ config });
   throw new Error(`Unknown ${type} plugin: ${id || '<none>'}`);
 }
@@ -225,7 +238,9 @@ export function resolvePlugin(type, id, { config = {} } = {}) {
 export function createBuiltinPlugins({ config = {} } = {}) {
   return {
     input: createInputPlugin(),
+    inputCsv: createInputCsvPlugin(),
     output: createOutputPlugin(),
+    outputDb: createOutputDatabasePlugin({ config }),
     ai: createAiPlugin({ config }),
   };
 }

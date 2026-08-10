@@ -7,6 +7,8 @@ import { fillCopy, fillInPlace, fillInPlaceSync } from '@terraflow/excel';
 import { abortableSleep, throwIfAborted } from '@terraflow/shared';
 import { EXCEL_OUT_DIR, makeUsageAdapter } from './config.js';
 import { emitLog } from './events.js';
+import { resolvePlugin } from './plugins.js';
+import { cleanRecords } from './cleaning.js';
 
 // Each stage receives { config, emitter, ctx }. `ctx` carries the job-scoped
 // file paths and the input source so jobs never clobber each other:
@@ -71,6 +73,54 @@ export async function extractStage({ config, emitter, ctx }) {
   emitLog(emitter, 'info', `\nJSON written: ${ctx.jsonPath}`);
 
   return { properties, removed, failures, report: ctx.reportPath, output: ctx.jsonPath, copied };
+}
+
+// ---- Stage: CSV read (v0.6 second workflow — CSV → Cleaning → Database) ----
+// Dispatches through the plugin registry (input-csv.read) so the engine talks
+// to the input contract, never to a hard-coded CSV reader.
+export async function csvReadStage({ config, emitter, ctx }) {
+  throwIfAborted(ctx.signal, 'Canceled during CSV read');
+  const plugin = resolvePlugin('input', 'input-csv');
+  const source = ctx.inputFiles?.length
+    ? { kind: 'files', files: ctx.inputFiles }
+    : ctx.inputSourceDir
+      ? { kind: 'dir', dir: ctx.inputSourceDir }
+      : ctx.inputFile
+        ? { kind: 'file', path: ctx.inputFile, name: ctx.inputName }
+        : null;
+  if (!source) throw new Error('No CSV input configured (upload a file or set a source directory)');
+
+  emitLog(emitter, 'info', 'Reading CSV input...');
+  const { records, removed, failures, files } = await plugin.read(source, { signal: ctx.signal });
+
+  fs.mkdirSync(path.dirname(ctx.jsonPath), { recursive: true });
+  fs.writeFileSync(ctx.jsonPath, JSON.stringify(records, null, 2), 'utf8');
+
+  emitLog(emitter, 'info', `CSV files read: ${files}`);
+  emitLog(emitter, 'info', `Rows parsed: ${records.length}`);
+  if (removed.length) emitLog(emitter, 'info', `Duplicate rows skipped: ${removed.length}`);
+  if (failures.length) {
+    emitLog(emitter, 'warn', `Read failures: ${failures.length}`);
+    for (const f of failures) emitLog(emitter, 'warn', `  - ${f.file}: ${f.reason}`);
+  }
+  emitLog(emitter, 'info', `Output: ${ctx.jsonPath}`);
+
+  return { records, removed, failures, files, output: ctx.jsonPath };
+}
+
+// ---- Stage: Clean (v0.6 second workflow) -------------------------------
+// The transform step of the spine (read → transform → draft → review → apply):
+// normalizes values (trim, empty->null, Arabic-digit coercion) and drops rows
+// with no data. Pure engine logic — the plugin registry is not involved.
+export async function cleanStage({ config, emitter, ctx }) {
+  throwIfAborted(ctx.signal, 'Canceled during clean');
+  const raw = JSON.parse(fs.readFileSync(ctx.jsonPath, 'utf8'));
+  const { records, dropped } = cleanRecords(raw);
+  fs.writeFileSync(ctx.jsonPath, JSON.stringify(records, null, 2), 'utf8');
+  emitLog(emitter, 'info', `Cleaning: ${records.length} rows kept, ${dropped.length} dropped (no data)`);
+  for (const d of dropped) emitLog(emitter, 'info', `  - dropped ${d.sourceFile} row ${d.sourceRow}: ${d.reason}`);
+  emitLog(emitter, 'info', `Output: ${ctx.jsonPath}`);
+  return { records: records.length, dropped: dropped.length, output: ctx.jsonPath };
 }
 
 // ---- Stage 2: AI enrichment ----

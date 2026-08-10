@@ -2,7 +2,7 @@ import path from 'path';
 import { loadConfig, JOBS_DIR, JSON_FILE, AI_FILE, REPORT_FILE } from './config.js';
 import { createEmitter } from './events.js';
 import { createAbortError } from '@terraflow/shared';
-import { extractStage, aiStage, dbStage, fillStage, fillOriginalStage } from './stages.js';
+import { extractStage, aiStage, dbStage, fillStage, fillOriginalStage, csvReadStage, cleanStage } from './stages.js';
 import { jobWorkDir } from './draft.js';
 import { readKmzFiles } from './kmz.js';
 
@@ -12,11 +12,16 @@ const STAGES = {
   db: dbStage,
   fill: fillStage,
   'fill:original': fillOriginalStage,
+  'csv-read': csvReadStage,
+  clean: cleanStage,
 };
 
 // Default steps for a job. The Basic workflow defers Excel writing to the
 // review/apply step, so the pipeline itself stops after database sync.
+// The CSV → Database workflow stops after read+clean; the DB plan is built and
+// reviewed in the draft phase (nothing touches the database before apply).
 export function defaultStagesFor(job) {
+  if (job?.workflowType === 'csv-db') return ['csv-read', 'clean'];
   if (job?.autoApply) return ['extract', 'ai', 'db', 'fill'];
   return ['extract', 'ai', 'db'];
 }
