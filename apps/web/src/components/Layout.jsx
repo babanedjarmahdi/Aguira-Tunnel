@@ -6,7 +6,7 @@ export const NAV = [
   { id: '/', label: 'Dashboard', icon: LayoutDashboard },
   { id: '/workflows', label: 'Workflows', icon: Workflow },
   { id: '/import', label: 'Import workflow', icon: UploadCloud },
-  { id: '/watchers', label: 'Watch workflows', icon: Eye, pro: true },
+  { id: '/watchers', label: 'Watch workflows', icon: Eye },
   { id: '/ai', label: 'AI Configuration', icon: Sparkles, pro: true },
   { id: '/templates', label: 'Excel Templates', icon: FileSpreadsheet, pro: true },
 ];

@@ -9,7 +9,7 @@ import Jobs from './pages/Jobs';
 import Workflows from './pages/Workflows';
 import AIConfig from './pages/AIConfig';
 import ExcelTemplates from './pages/ExcelTemplates';
-import Watchers from './pages/Watchers';
+import WatcherLanding from './pages/WatcherLanding';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import About from './pages/About';
@@ -65,7 +65,7 @@ function Shell() {
           <Route path="/workflows" element={<Workflows />} />
           <Route path="/ai" element={<ProGate mode={mode}><AIConfig /></ProGate>} />
           <Route path="/templates" element={<ProGate mode={mode}><ExcelTemplates /></ProGate>} />
-          <Route path="/watchers" element={<ProGate mode={mode}><Watchers /></ProGate>} />
+          <Route path="/watchers" element={<WatcherLanding />} />
           <Route path="/settings" element={<ProGate mode={mode}><Settings mode={mode} setMode={switchMode} /></ProGate>} />
           <Route path="/logs" element={<ProGate mode={mode}><Logs /></ProGate>} />
           <Route path="/about" element={<About />} />
